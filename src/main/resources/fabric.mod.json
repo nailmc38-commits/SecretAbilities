@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "secretabilities",
+  "version": "${version}",
+  "name": "Secret Abilities",
+  "description": "F9 ability menu with Walk on Water and toggleable X-Ray.",
+  "authors": ["Secret_gamer38"],
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.secret.abilities.SecretAbilitiesClient"
+    ]
+  },
+  "mixins": [
+    "secretabilities.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.18.2",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
