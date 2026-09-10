@@ -16,9 +16,7 @@ public final class WaypointManager {
     public record Waypoint(String name, String dimension, int x, int y, int z) {}
 
     private static final List<Waypoint> WAYPOINTS = new ArrayList<>();
-    private static final Path FILE = FabricLoader.getInstance()
-            .getConfigDir()
-            .resolve("secretabilities-waypoints.txt");
+    private static final Path FILE = FabricLoader.getInstance().getConfigDir().resolve("voidclient-waypoints.txt");
 
     private WaypointManager() {}
 
@@ -26,20 +24,25 @@ public final class WaypointManager {
         WAYPOINTS.clear();
 
         if (!Files.exists(FILE)) {
+            Path oldFile = FabricLoader.getInstance().getConfigDir().resolve("secretabilities-waypoints.txt");
+            if (Files.exists(oldFile)) {
+                loadFrom(oldFile);
+                save();
+            }
             return;
         }
+        loadFrom(FILE);
+    }
 
+    private static void loadFrom(Path path) {
         try {
-            for (String line : Files.readAllLines(FILE, StandardCharsets.UTF_8)) {
+            for (String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
                 String[] parts = line.split("\\|", 5);
-                if (parts.length != 5) {
-                    continue;
-                }
+                if (parts.length != 5) continue;
 
                 try {
                     WAYPOINTS.add(new Waypoint(
-                            parts[0],
-                            parts[1],
+                            parts[0], parts[1],
                             Integer.parseInt(parts[2]),
                             Integer.parseInt(parts[3]),
                             Integer.parseInt(parts[4])
@@ -52,20 +55,15 @@ public final class WaypointManager {
     }
 
     public static Waypoint addCurrent(MinecraftClient client) {
-        if (client.player == null || client.world == null) {
-            return null;
-        }
+        return addNamedCurrent(client, "Waypoint " + (WAYPOINTS.size() + 1));
+    }
+
+    public static Waypoint addNamedCurrent(MinecraftClient client, String name) {
+        if (client.player == null || client.world == null) return null;
 
         BlockPos pos = client.player.getBlockPos();
         String dimension = client.world.getRegistryKey().getValue().toString();
-        Waypoint waypoint = new Waypoint(
-                "Waypoint " + (WAYPOINTS.size() + 1),
-                dimension,
-                pos.getX(),
-                pos.getY(),
-                pos.getZ()
-        );
-
+        Waypoint waypoint = new Waypoint(name, dimension, pos.getX(), pos.getY(), pos.getZ());
         WAYPOINTS.add(waypoint);
         save();
         return waypoint;
@@ -86,15 +84,9 @@ public final class WaypointManager {
 
     private static void save() {
         List<String> lines = new ArrayList<>();
-
         for (Waypoint waypoint : WAYPOINTS) {
-            lines.add(
-                    waypoint.name() + "|" +
-                    waypoint.dimension() + "|" +
-                    waypoint.x() + "|" +
-                    waypoint.y() + "|" +
-                    waypoint.z()
-            );
+            lines.add(waypoint.name() + "|" + waypoint.dimension() + "|" +
+                    waypoint.x() + "|" + waypoint.y() + "|" + waypoint.z());
         }
 
         try {

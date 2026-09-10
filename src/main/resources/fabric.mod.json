@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "secretabilities",
   "version": "${version}",
-  "name": "Secret Client",
-  "description": "A modular Fabric 1.21.11 utility client with a tabbed GUI, keybinds, rendering tools and world utilities.",
+  "name": "Void Client",
+  "description": "A modular Fabric 1.21.11 utility client with 50+ modules, custom macros, HUD tools and optional Baritone automation.",
   "authors": ["Secret_gamer38"],
   "environment": "client",
   "entrypoints": {
