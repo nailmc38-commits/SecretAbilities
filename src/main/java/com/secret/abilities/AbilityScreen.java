@@ -2,14 +2,19 @@ package com.secret.abilities;
 
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.screen.option.KeybindsScreen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
+
+import java.util.function.BooleanSupplier;
 
 public class AbilityScreen extends Screen {
     private enum Tab {
+        BOT("Bot"),
+        PVP("PvP"),
         MOVEMENT("Movement"),
-        VISION("Vision"),
-        HUD("HUD"),
+        RENDER("Render"),
         WORLD("World");
 
         private final String label;
@@ -43,15 +48,11 @@ public class AbilityScreen extends Screen {
             "minecraft:end_city"
     };
 
-    private Tab currentTab = Tab.MOVEMENT;
+    private Tab currentTab = Tab.BOT;
     private int selectedStructure = 0;
 
     public AbilityScreen() {
-        super(Text.literal("Secret Abilities"));
-    }
-
-    private static Text statusText(String name, boolean enabled) {
-        return Text.literal(name + ": " + (enabled ? "ON" : "OFF"));
+        super(Text.literal("Secret Client"));
     }
 
     @Override
@@ -59,103 +60,152 @@ public class AbilityScreen extends Screen {
         rebuild();
     }
 
+    private Text toggleText(String name, boolean enabled) {
+        return Text.literal(name + "   ")
+                .append(Text.literal(enabled ? "ON" : "OFF")
+                        .formatted(enabled ? Formatting.GREEN : Formatting.RED));
+    }
+
+    private void addToggle(
+            String name,
+            BooleanSupplier state,
+            Runnable toggle,
+            int x,
+            int y,
+            int width
+    ) {
+        this.addDrawableChild(ButtonWidget.builder(
+                toggleText(name, state.getAsBoolean()),
+                button -> {
+                    toggle.run();
+                    button.setMessage(toggleText(name, state.getAsBoolean()));
+                }
+        ).dimensions(x, y, width, 26).build());
+    }
+
     private void rebuild() {
         this.clearChildren();
 
-        int tabWidth = 90;
-        int tabGap = 4;
-        int totalWidth = (tabWidth * Tab.values().length) + (tabGap * (Tab.values().length - 1));
-        int startX = (this.width - totalWidth) / 2;
-        int tabY = 42;
+        int panelWidth = Math.min(560, this.width - 30);
+        int panelLeft = (this.width - panelWidth) / 2;
+        int panelTop = Math.max(22, (this.height - 350) / 2);
+        int contentLeft = panelLeft + 24;
+        int contentTop = panelTop + 91;
+        int contentWidth = panelWidth - 48;
+
+        int tabGap = 5;
+        int tabWidth = (contentWidth - tabGap * 4) / 5;
+        int tabY = panelTop + 47;
 
         Tab[] tabs = Tab.values();
         for (int i = 0; i < tabs.length; i++) {
             Tab tab = tabs[i];
             this.addDrawableChild(ButtonWidget.builder(
-                    Text.literal((currentTab == tab ? "> " : "") + tab.label),
+                    Text.literal(tab.label).formatted(currentTab == tab ? Formatting.AQUA : Formatting.GRAY),
                     button -> {
                         currentTab = tab;
                         rebuild();
                     }
-            ).dimensions(startX + i * (tabWidth + tabGap), tabY, tabWidth, 22).build());
+            ).dimensions(contentLeft + i * (tabWidth + tabGap), tabY, tabWidth, 24).build());
         }
-
-        int buttonWidth = 240;
-        int buttonHeight = 24;
-        int x = (this.width - buttonWidth) / 2;
-        int y = 90;
 
         switch (currentTab) {
-            case MOVEMENT -> addMovementTab(x, y, buttonWidth, buttonHeight);
-            case VISION -> addVisionTab(x, y, buttonWidth, buttonHeight);
-            case HUD -> addHudTab(x, y, buttonWidth, buttonHeight);
-            case WORLD -> addWorldTab(x, y, buttonWidth, buttonHeight);
+            case BOT -> addBotTab(contentLeft, contentTop, contentWidth);
+            case PVP -> addPvpTab(contentLeft, contentTop, contentWidth);
+            case MOVEMENT -> addMovementTab(contentLeft, contentTop, contentWidth);
+            case RENDER -> addRenderTab(contentLeft, contentTop, contentWidth);
+            case WORLD -> addWorldTab(contentLeft, contentTop, contentWidth);
         }
 
+        int footerY = panelTop + 305;
         this.addDrawableChild(ButtonWidget.builder(
-                Text.literal("Close"),
+                Text.literal("KEYBINDS").formatted(Formatting.AQUA),
+                button -> {
+                    if (this.client != null) {
+                        this.client.setScreen(new KeybindsScreen(this, this.client.options));
+                    }
+                }
+        ).dimensions(contentLeft, footerY, 120, 24).build());
+
+        this.addDrawableChild(ButtonWidget.builder(
+                Text.literal("CLOSE"),
                 button -> this.close()
-        ).dimensions((this.width - 120) / 2, this.height - 38, 120, 22).build());
+        ).dimensions(panelLeft + panelWidth - 144, footerY, 120, 24).build());
     }
 
-    private void addMovementTab(int x, int y, int width, int height) {
-        this.addDrawableChild(ButtonWidget.builder(
-                statusText("Walk on Water", ModState.walkOnWater),
-                button -> {
-                    ModState.walkOnWater = !ModState.walkOnWater;
-                    button.setMessage(statusText("Walk on Water", ModState.walkOnWater));
-                }
-        ).dimensions(x, y, width, height).build());
+    private void addBotTab(int x, int y, int width) {
+        // /mine and other bot modules will live here later.
     }
 
-    private void addVisionTab(int x, int y, int width, int height) {
-        this.addDrawableChild(ButtonWidget.builder(
-                statusText("X-Ray", ModState.xray),
-                button -> {
+    private void addPvpTab(int x, int y, int width) {
+        // PvP modules will live here later.
+    }
+
+    private void addMovementTab(int x, int y, int width) {
+        addToggle(
+                "Walk on Water",
+                () -> ModState.walkOnWater,
+                () -> ModState.walkOnWater = !ModState.walkOnWater,
+                x,
+                y,
+                width
+        );
+    }
+
+    private void addRenderTab(int x, int y, int width) {
+        addToggle(
+                "X-Ray",
+                () -> ModState.xray,
+                () -> {
                     ModState.xray = !ModState.xray;
-                    button.setMessage(statusText("X-Ray", ModState.xray));
                     SecretAbilitiesClient.refreshXray();
-                }
-        ).dimensions(x, y, width, height).build());
+                },
+                x,
+                y,
+                width
+        );
 
-        this.addDrawableChild(ButtonWidget.builder(
-                statusText("Player ESP", ModState.playerEsp),
-                button -> {
-                    ModState.playerEsp = !ModState.playerEsp;
-                    button.setMessage(statusText("Player ESP", ModState.playerEsp));
-                }
-        ).dimensions(x, y + 32, width, height).build());
+        addToggle(
+                "Player ESP",
+                () -> ModState.playerEsp,
+                () -> ModState.playerEsp = !ModState.playerEsp,
+                x,
+                y + 34,
+                width
+        );
+
+        addToggle(
+                "FPS / Ping HUD",
+                () -> ModState.statsHud,
+                () -> ModState.statsHud = !ModState.statsHud,
+                x,
+                y + 68,
+                width
+        );
     }
 
-    private void addHudTab(int x, int y, int width, int height) {
-        this.addDrawableChild(ButtonWidget.builder(
-                statusText("FPS / Ping HUD", ModState.statsHud),
-                button -> {
-                    ModState.statsHud = !ModState.statsHud;
-                    button.setMessage(statusText("FPS / Ping HUD", ModState.statsHud));
-                }
-        ).dimensions(x, y, width, height).build());
+    private void addWorldTab(int x, int y, int width) {
+        addToggle(
+                "Waypoint HUD",
+                () -> ModState.waypointHud,
+                () -> ModState.waypointHud = !ModState.waypointHud,
+                x,
+                y,
+                width
+        );
 
-        this.addDrawableChild(ButtonWidget.builder(
-                statusText("Waypoint HUD", ModState.waypointHud),
-                button -> {
-                    ModState.waypointHud = !ModState.waypointHud;
-                    button.setMessage(statusText("Waypoint HUD", ModState.waypointHud));
-                }
-        ).dimensions(x, y + 32, width, height).build());
-    }
+        int half = (width - 8) / 2;
 
-    private void addWorldTab(int x, int y, int width, int height) {
         this.addDrawableChild(ButtonWidget.builder(
                 Text.literal("Structure: " + STRUCTURE_NAMES[selectedStructure]),
                 button -> {
                     selectedStructure = (selectedStructure + 1) % STRUCTURE_NAMES.length;
                     button.setMessage(Text.literal("Structure: " + STRUCTURE_NAMES[selectedStructure]));
                 }
-        ).dimensions(x, y, width, height).build());
+        ).dimensions(x, y + 42, half, 26).build());
 
         this.addDrawableChild(ButtonWidget.builder(
-                Text.literal("Find Nearest Structure"),
+                Text.literal("Find Nearest"),
                 button -> {
                     if (this.client != null && this.client.getNetworkHandler() != null) {
                         this.client.getNetworkHandler().sendChatCommand(
@@ -164,67 +214,142 @@ public class AbilityScreen extends Screen {
                         this.close();
                     }
                 }
-        ).dimensions(x, y + 32, width, height).build());
+        ).dimensions(x + half + 8, y + 42, half, 26).build());
 
         this.addDrawableChild(ButtonWidget.builder(
-                Text.literal("Add Waypoint Here (" + WaypointManager.count() + " saved)"),
+                Text.literal("Add Waypoint Here"),
                 button -> {
                     if (this.client != null) {
                         WaypointManager.Waypoint waypoint = WaypointManager.addCurrent(this.client);
                         if (waypoint != null) {
-                            button.setMessage(Text.literal("Saved " + waypoint.name()));
+                            button.setMessage(Text.literal("Saved " + waypoint.name()).formatted(Formatting.GREEN));
                         }
                     }
                 }
-        ).dimensions(x, y + 76, width, height).build());
+        ).dimensions(x, y + 76, half, 26).build());
 
         this.addDrawableChild(ButtonWidget.builder(
-                Text.literal("Clear All Waypoints"),
+                Text.literal("Clear Waypoints"),
                 button -> {
                     WaypointManager.clear();
-                    button.setMessage(Text.literal("Waypoints Cleared"));
+                    button.setMessage(Text.literal("Waypoints Cleared").formatted(Formatting.YELLOW));
                 }
-        ).dimensions(x, y + 108, width, height).build());
+        ).dimensions(x + half + 8, y + 76, half, 26).build());
     }
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         this.renderBackground(context, mouseX, mouseY, delta);
 
-        context.drawCenteredTextWithShadow(
+        int panelWidth = Math.min(560, this.width - 30);
+        int panelHeight = 350;
+        int panelLeft = (this.width - panelWidth) / 2;
+        int panelTop = Math.max(22, (this.height - panelHeight) / 2);
+        int panelRight = panelLeft + panelWidth;
+        int panelBottom = panelTop + panelHeight;
+
+        // Shadow + main dark panel.
+        context.fill(panelLeft + 4, panelTop + 5, panelRight + 4, panelBottom + 5, 0x70000000);
+        context.fill(panelLeft, panelTop, panelRight, panelBottom, 0xF011151C);
+
+        // Header and cyan accent.
+        context.fill(panelLeft, panelTop, panelRight, panelTop + 40, 0xFF171D26);
+        context.fill(panelLeft, panelTop, panelRight, panelTop + 3, 0xFF35E8FF);
+        context.fill(panelLeft + 18, panelTop + 78, panelRight - 18, panelTop + 79, 0x5535E8FF);
+
+        context.drawTextWithShadow(
                 this.textRenderer,
-                this.title,
-                this.width / 2,
-                16,
+                Text.literal("SECRET").formatted(Formatting.WHITE)
+                        .append(Text.literal(" CLIENT").formatted(Formatting.AQUA)),
+                panelLeft + 22,
+                panelTop + 15,
                 0xFFFFFF
         );
 
-        context.drawCenteredTextWithShadow(
+        context.drawTextWithShadow(
                 this.textRenderer,
-                Text.literal("F9 menu"),
-                this.width / 2,
-                28,
-                0xAAAAAA
+                Text.literal("Fabric 1.21.11"),
+                panelRight - 102,
+                panelTop + 15,
+                0xFF8995A6
         );
 
-        if (currentTab == Tab.WORLD) {
-            context.drawCenteredTextWithShadow(
-                    this.textRenderer,
-                    Text.literal("Structure Finder uses /locate and needs permission."),
-                    this.width / 2,
-                    220,
-                    0xAAAAAA
-            );
-            context.drawCenteredTextWithShadow(
-                    this.textRenderer,
-                    Text.literal("Nether/End structures must be searched in that dimension."),
-                    this.width / 2,
-                    232,
-                    0x888888
-            );
+        context.drawTextWithShadow(
+                this.textRenderer,
+                Text.literal(currentTab.label.toUpperCase()),
+                panelLeft + 24,
+                panelTop + 83,
+                0xFF35E8FF
+        );
+
+        String subtitle = switch (currentTab) {
+            case BOT -> "Automation modules - /mine will live here later.";
+            case PVP -> "PvP modules will live here.";
+            case MOVEMENT -> "Movement abilities and mobility tools.";
+            case RENDER -> "Visual modules and on-screen information.";
+            case WORLD -> "Waypoints and world utilities.";
+        };
+
+        context.drawTextWithShadow(
+                this.textRenderer,
+                Text.literal(subtitle),
+                panelLeft + 24,
+                panelTop + 102,
+                0xFF8E99A8
+        );
+
+        if (currentTab == Tab.BOT) {
+            drawEmptyCard(context, panelLeft, panelTop, panelWidth,
+                    "BOT MODULES",
+                    "Ready for /mine when you want to build it.");
+        } else if (currentTab == Tab.PVP) {
+            drawEmptyCard(context, panelLeft, panelTop, panelWidth,
+                    "PVP MODULES",
+                    "This tab is ready for your combat modules.");
         }
 
+        context.drawTextWithShadow(
+                this.textRenderer,
+                Text.literal("Tip: use KEYBINDS to change every shortcut."),
+                panelLeft + 154,
+                panelTop + 313,
+                0xFF778292
+        );
+
         super.render(context, mouseX, mouseY, delta);
+    }
+
+    private void drawEmptyCard(
+            DrawContext context,
+            int panelLeft,
+            int panelTop,
+            int panelWidth,
+            String heading,
+            String body
+    ) {
+        int left = panelLeft + 24;
+        int right = panelLeft + panelWidth - 24;
+        int top = panelTop + 125;
+        int bottom = top + 78;
+
+        context.fill(left, top, right, bottom, 0xAA171D26);
+        context.fill(left, top, left + 3, bottom, 0xFF35E8FF);
+
+        context.drawTextWithShadow(
+                this.textRenderer,
+                Text.literal(heading).formatted(Formatting.AQUA),
+                left + 14,
+                top + 17,
+                0xFFFFFF
+        );
+
+        context.drawTextWithShadow(
+                this.textRenderer,
+                Text.literal(body),
+                left + 14,
+                top + 39,
+                0xFF98A3B3
+        );
     }
 
     @Override

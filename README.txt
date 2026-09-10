@@ -1,30 +1,39 @@
-Secret Abilities - Fabric 1.21.11
+Secret Client - Fabric 1.21.11
 
-Controls:
-- F9: open the tabbed Secret Abilities menu
+Open GUI:
+- Default: F9
+- Rebind it in Minecraft Options > Controls > Key Binds.
 
-Tabs:
+GUI tabs:
+- Bot
+- PvP
 - Movement
-  - Walk on Water
-- Vision
-  - X-Ray
-  - Player ESP
-- HUD
-  - FPS / Ping HUD
-  - Waypoint HUD
+- Render
 - World
-  - Structure Finder
-  - Add waypoint at current position
-  - Clear saved waypoints
 
-Waypoints are saved in the Fabric config directory and survive restarts.
+Current modules:
+- Walk on Water
+- X-Ray
+- Player ESP
+- FPS / Ping HUD
+- Waypoint HUD
+- Structure Finder
+- Saved waypoints
 
-Structure Finder:
-- Cycles through common structures such as villages, strongholds, trial chambers,
-  ancient cities, mansions, monuments, fortresses, bastions and end cities.
-- Uses the vanilla /locate structure command.
-- Requires permission to use /locate.
-- Nether and End structures must be searched while in their matching dimension.
+Rebindable shortcuts:
+- Open Secret Client GUI
+- Toggle X-Ray
+- Toggle Player ESP
+- Toggle Walk on Water
+- Toggle FPS / Ping HUD
+- Toggle Waypoint HUD
+- Add Waypoint Here
+
+Only the GUI is bound by default (F9). Other module shortcuts start unbound so you can choose your own keys.
+
+The KEYBINDS button inside the GUI opens Minecraft's normal keybind screen.
+
+Bot and PvP tabs are intentionally ready for future modules; /mine has not been added yet.
 
 Requirements:
 - Minecraft Java 1.21.11
@@ -32,5 +41,4 @@ Requirements:
 - Fabric API for 1.21.11
 - Java 21
 
-Multiplayer:
-Some servers prohibit X-Ray, ESP, or movement modifications. Use features only where allowed.
+Use server-side-restricted modules only where the server rules allow them.

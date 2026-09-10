@@ -1,3 +1,9 @@
 {
-  "key.secretabilities.menu": "Open Secret Abilities Menu"
+  "key.secretabilities.menu": "Open Secret Client GUI",
+  "key.secretabilities.xray": "Toggle X-Ray",
+  "key.secretabilities.esp": "Toggle Player ESP",
+  "key.secretabilities.water_walk": "Toggle Walk on Water",
+  "key.secretabilities.stats_hud": "Toggle FPS / Ping HUD",
+  "key.secretabilities.waypoint_hud": "Toggle Waypoint HUD",
+  "key.secretabilities.add_waypoint": "Add Waypoint Here"
 }
