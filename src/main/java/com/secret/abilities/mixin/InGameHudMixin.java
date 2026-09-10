@@ -10,6 +10,7 @@ import net.minecraft.client.gui.hud.InGameHud;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.client.render.RenderTickCounter;
+import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -91,8 +92,15 @@ public abstract class InGameHudMixin {
         if (ModuleRegistry.isEnabled("armor_hud") || ModuleRegistry.isEnabled("durability_hud")) {
             StringBuilder armor = new StringBuilder("Armor: ");
             boolean first = true;
+            EquipmentSlot[] armorSlots = {
+                    EquipmentSlot.HEAD,
+                    EquipmentSlot.CHEST,
+                    EquipmentSlot.LEGS,
+                    EquipmentSlot.FEET
+            };
 
-            for (ItemStack stack : client.player.getArmorItems()) {
+            for (EquipmentSlot slot : armorSlots) {
+                ItemStack stack = client.player.getEquippedStack(slot);
                 if (stack.isEmpty()) continue;
                 if (!first) armor.append(" | ");
                 first = false;
