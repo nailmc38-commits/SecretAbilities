@@ -13,6 +13,8 @@ public class SecretAbilitiesClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        WaypointManager.load();
+
         menuKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.secretabilities.menu",
                 InputUtil.Type.KEYSYM,
