@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "dogbreeder",
+  "version": "${version}",
+  "name": "DogBreeder",
+  "description": "Client-side /breed helper for feeding and growing your nearby tamed wolves.",
+  "authors": ["Secret_gamer38"],
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.secret.dogbreeder.DogBreederClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.2",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
