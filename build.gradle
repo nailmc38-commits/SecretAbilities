@@ -21,6 +21,13 @@ dependencies {
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 }
 
+sourceSets {
+    main {
+        java { srcDirs = ['dogbreeder-src'] }
+        resources { srcDirs = ['dogbreeder-resources'] }
+    }
+}
+
 processResources {
     inputs.property "version", project.version
     filesMatching("fabric.mod.json") {
