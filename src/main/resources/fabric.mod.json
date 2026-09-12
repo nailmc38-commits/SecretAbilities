@@ -3,7 +3,7 @@
   "id": "minigamehub",
   "version": "${version}",
   "name": "Mini Game Hub",
-  "description": "A Fabric 1.21.11 game-inside-Minecraft hub with 19 playable games, including Mini Minecraft Survival, 3D maze, text RPG, arcade, puzzle, racing and strategy games.",
+  "description": "A Fabric 1.21.11 game-inside-Minecraft hub with 20 playable games plus a dedicated Anchor PvP practice tab, including Survival+, Cozy Trails, arcade, puzzle, racing, strategy and text RPG games.",
   "authors": ["Secret_gamer38"],
   "environment": "client",
   "entrypoints": {
