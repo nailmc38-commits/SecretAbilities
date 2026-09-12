@@ -1,19 +1,16 @@
 {
   "schemaVersion": 1,
-  "id": "secretabilities",
+  "id": "minigamehub",
   "version": "${version}",
-  "name": "Void Client",
-  "description": "A modular Fabric 1.21.11 utility client with 50+ modules, custom macros, HUD tools and optional Baritone automation.",
+  "name": "Mini Game Hub",
+  "description": "Four playable minigames inside Minecraft: Mini Minecraft 3D, Block Drop, Neon Maze 3D, and Wasteland Third Person.",
   "authors": ["Secret_gamer38"],
   "environment": "client",
   "entrypoints": {
     "client": [
-      "com.secret.abilities.SecretAbilitiesClient"
+      "com.secret.minigames.GameHubClient"
     ]
   },
-  "mixins": [
-    "secretabilities.mixins.json"
-  ],
   "depends": {
     "fabricloader": ">=0.18.2",
     "minecraft": "~1.21.11",

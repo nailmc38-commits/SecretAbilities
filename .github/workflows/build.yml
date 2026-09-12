@@ -1,4 +1,4 @@
-name: Build Void Client
+name: Build Mini Game Hub
 
 on:
   workflow_dispatch:
@@ -24,11 +24,11 @@ jobs:
           gradle-version: '9.2.1'
       - name: Build
         run: gradle clean build --stacktrace
-      - name: Upload Void Client JAR
+      - name: Upload Mini Game Hub JAR
         uses: actions/upload-artifact@v4
         with:
-          name: VoidClient-1.21.11
+          name: MiniGameHub-1.21.11
           path: |
-            build/libs/voidclient-*.jar
+            build/libs/minigamehub-*.jar
             !build/libs/*-sources.jar
           if-no-files-found: error
