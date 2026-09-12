@@ -3,7 +3,7 @@
   "id": "minigamehub",
   "version": "${version}",
   "name": "Mini Game Hub",
-  "description": "Four playable minigames inside Minecraft: Mini Minecraft 3D, Block Drop, Neon Maze 3D, and Wasteland Third Person.",
+  "description": "A Fabric 1.21.11 game-inside-Minecraft hub with 19 playable games, including Mini Minecraft Survival, 3D maze, text RPG, arcade, puzzle, racing and strategy games.",
   "authors": ["Secret_gamer38"],
   "environment": "client",
   "entrypoints": {
