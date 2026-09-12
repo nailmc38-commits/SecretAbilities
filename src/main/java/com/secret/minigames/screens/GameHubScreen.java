@@ -99,17 +99,25 @@ public final class GameHubScreen extends Screen {
     private void buildPvpTab() {
         int w = Math.min(430, this.width - 30);
         int left = this.width / 2 - w / 2;
-        int top = 77;
+        int top = 75;
 
         this.addDrawableChild(ButtonWidget.builder(
-                Text.literal("ANCHOR PvP PRACTICE").formatted(Formatting.LIGHT_PURPLE, Formatting.BOLD),
-                b -> {
-                    if (this.client != null) this.client.setScreen(new AnchorPracticeScreen(this));
-                }
-        ).dimensions(left, top, w, 28).build());
+                Text.literal("ANCHOR PRACTICE").formatted(Formatting.LIGHT_PURPLE, Formatting.BOLD),
+                b -> { if (this.client != null) this.client.setScreen(new AnchorPracticeScreen(this)); }
+        ).dimensions(left, top, w, 26).build());
+
+        this.addDrawableChild(ButtonWidget.builder(
+                Text.literal("CRYSTAL PRACTICE").formatted(Formatting.AQUA, Formatting.BOLD),
+                b -> { if (this.client != null) this.client.setScreen(new CrystalPracticeScreen(this)); }
+        ).dimensions(left, top + 32, w, 26).build());
+
+        this.addDrawableChild(ButtonWidget.builder(
+                Text.literal("HYBRID: ANCHOR + CRYSTAL").formatted(Formatting.GOLD, Formatting.BOLD),
+                b -> { if (this.client != null) this.client.setScreen(new HybridPracticeScreen(this)); }
+        ).dimensions(left, top + 64, w, 26).build());
 
         this.addDrawableChild(ButtonWidget.builder(Text.literal("CLOSE"), b -> this.close())
-                .dimensions(this.width / 2 - 58, top + 111, 116, 21).build());
+                .dimensions(this.width / 2 - 58, top + 170, 116, 21).build());
     }
 
     private void addArcade(int x, int y, int w, int h, String name, Formatting color, ArcadeGameScreen.Game game) {
@@ -132,26 +140,29 @@ public final class GameHubScreen extends Screen {
                 Text.literal("MINI GAME HUB").formatted(Formatting.AQUA, Formatting.BOLD),
                 this.width / 2, 9, 0xFFFFFF);
         context.drawCenteredTextWithShadow(this.textRenderer,
-                Text.literal("20 games + dedicated PvP practice • Fabric 1.21.11 • F9 closes hub").formatted(Formatting.GRAY),
+                Text.literal("20 games + 3 PvP practice modes • Fabric 1.21.11 • F9 closes hub").formatted(Formatting.GRAY),
                 this.width / 2, 22, 0xFFFFFF);
 
         if (tab == HubTab.PVP) {
             int boxW = Math.min(430, this.width - 30);
             int left = this.width / 2 - boxW / 2;
-            int top = 112;
-            context.fill(left, top, left + boxW, top + 66, 0xAA15121C);
+            int top = 176;
+            context.fill(left, top, left + boxW, top + 82, 0xAA15121C);
             context.drawCenteredTextWithShadow(this.textRenderer,
-                    Text.literal("ANCHOR PRACTICE ONLY").formatted(Formatting.LIGHT_PURPLE, Formatting.BOLD),
+                    Text.literal("YOUR PvP KEYBINDS").formatted(Formatting.LIGHT_PURPLE, Formatting.BOLD),
                     this.width / 2, top + 8, 0xFFFFFF);
             context.drawCenteredTextWithShadow(this.textRenderer,
-                    Text.literal("Z = select anchor • X = select glowstone • RMB = place / charge / explode"),
-                    this.width / 2, top + 23, 0xFFFFFF);
+                    Text.literal("Anchor: Z • Glowstone: X • Obsidian: R • End Crystal: Left Alt"),
+                    this.width / 2, top + 24, 0xFFFFFF);
             context.drawCenteredTextWithShadow(this.textRenderer,
-                    Text.literal("Walk around freely • explosions destroy terrain • you take ZERO self-damage").formatted(Formatting.GRAY),
-                    this.width / 2, top + 37, 0xFFFFFF);
+                    Text.literal("Crystal: RMB place • LMB pop    Anchor: RMB place / charge / explode").formatted(Formatting.GRAY),
+                    this.width / 2, top + 39, 0xFFFFFF);
             context.drawCenteredTextWithShadow(this.textRenderer,
-                    Text.literal("R resets the practice arena").formatted(Formatting.DARK_GRAY),
-                    this.width / 2, top + 51, 0xFFFFFF);
+                    Text.literal("Destructible terrain • reusable obsidian • ZERO self-damage").formatted(Formatting.GREEN),
+                    this.width / 2, top + 54, 0xFFFFFF);
+            context.drawCenteredTextWithShadow(this.textRenderer,
+                    Text.literal("Backspace resets Crystal/Hybrid • R resets Anchor-only arena").formatted(Formatting.DARK_GRAY),
+                    this.width / 2, top + 68, 0xFFFFFF);
         } else {
             int footer = Math.min(this.height - 13, 229);
             context.drawCenteredTextWithShadow(this.textRenderer,
