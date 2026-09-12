@@ -1,9 +1,9 @@
-name: Build Mini Game Hub
+name: Build DogBreeder
 
 on:
   workflow_dispatch:
   push:
-    branches: [ main, master ]
+    branches: [ master ]
 
 jobs:
   build:
@@ -24,11 +24,11 @@ jobs:
           gradle-version: '9.2.1'
       - name: Build
         run: gradle clean build --stacktrace
-      - name: Upload Mini Game Hub JAR
+      - name: Upload DogBreeder JAR
         uses: actions/upload-artifact@v4
         with:
-          name: MiniGameHub-1.21.11
+          name: DogBreeder-1.21.11
           path: |
-            build/libs/minigamehub-*.jar
+            build/libs/dogbreeder-*.jar
             !build/libs/*-sources.jar
           if-no-files-found: error
