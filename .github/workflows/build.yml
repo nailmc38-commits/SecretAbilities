@@ -1,9 +1,8 @@
-name: Build Mini Game Hub
+name: Build ShieldToggle
 
 on:
-  workflow_dispatch:
   push:
-    branches: [ main, master ]
+    branches: [ shieldtoggle-build ]
 
 jobs:
   build:
@@ -24,11 +23,11 @@ jobs:
           gradle-version: '9.2.1'
       - name: Build
         run: gradle clean build --stacktrace
-      - name: Upload Mini Game Hub JAR
+      - name: Upload ShieldToggle JAR
         uses: actions/upload-artifact@v4
         with:
-          name: MiniGameHub-1.21.11
+          name: ShieldToggle-1.21.11
           path: |
-            build/libs/minigamehub-*.jar
+            build/libs/shieldtoggle-*.jar
             !build/libs/*-sources.jar
           if-no-files-found: error
