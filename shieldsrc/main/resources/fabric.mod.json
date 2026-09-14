@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "shieldtoggle",
+  "version": "${version}",
+  "name": "Shield Toggle",
+  "description": "Client-side /shield and /shield down commands for Minecraft 1.21.11 Fabric.",
+  "authors": ["Secret_gamer38"],
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.secretgamer38.shieldtoggle.ShieldToggleClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.17.0",
+    "minecraft": "1.21.11",
+    "fabric-api": "*"
+  }
+}
