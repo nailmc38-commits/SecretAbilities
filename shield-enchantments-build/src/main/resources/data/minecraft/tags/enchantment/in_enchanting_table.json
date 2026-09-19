@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "shield_enchants:aegis",
+    "shield_enchants:deflection",
+    "shield_enchants:reinforcement",
+    "shield_enchants:repulse"
+  ]
+}
