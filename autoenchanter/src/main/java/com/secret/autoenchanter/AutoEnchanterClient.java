@@ -6,9 +6,12 @@ import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.block.Blocks;
+import net.minecraft.block.EnchantingTableBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
+import net.minecraft.util.math.BlockPos;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -116,14 +119,24 @@ public final class AutoEnchanterClient implements ClientModInitializer {
             return;
         }
 
+        BlockPos tablePos = findNearestEnchantingTable(client, 6);
+        if (tablePos == null) {
+            message(client, "Stand within 6 blocks of the enchanting table, then press START AUTO again.");
+            return;
+        }
+
+        int shelves = countUsableBookshelves(client, tablePos);
+        EngineBridge.lockBookshelves(shelves);
+
         StringBuilder command = new StringBuilder("cenchant ").append(itemId);
         for (AutoEnchanterScreen.SelectedEnchant enchant : selected) {
             command.append(" with ").append(enchant.id()).append(" ").append(enchant.level());
         }
 
-        pendingRun = new PendingRun(command.toString());
+        pendingRun = new PendingRun(command.toString(), shelves);
         client.setScreen(null);
         message(client, "Auto sequence started for " + itemId + ".");
+        message(client, "Locked search to your current table: " + shelves + " usable bookshelves.");
         message(client, "Keep a stack of disposable items in your inventory for RNG throws.");
     }
 
@@ -142,9 +155,14 @@ public final class AutoEnchanterClient implements ClientModInitializer {
         } else if (pendingRun.ticks == 10) {
             runClientCommand(client, "ccrackrng");
             message(client, "Cracking player RNG automatically...");
-        } else if (pendingRun.ticks == 610) {
+        } else if (pendingRun.ticks > 10 && !pendingRun.searchStarted && EngineBridge.isPlayerSeedCracked()) {
+            EngineBridge.lockBookshelves(pendingRun.bookshelves);
+            pendingRun.searchStarted = true;
             runClientCommand(client, pendingRun.cenchantCommand);
-            message(client, "Searching for your selected enchant combination with the bundled 1.21.11 engine...");
+            message(client, "RNG cracked. Searching using exactly " + pendingRun.bookshelves + " bookshelves...");
+            pendingRun = null;
+        } else if (pendingRun.ticks > 1200) {
+            message(client, "RNG crack timed out. Press F10 and START AUTO to retry.");
             pendingRun = null;
         }
     }
@@ -153,6 +171,47 @@ public final class AutoEnchanterClient implements ClientModInitializer {
         if (client.getNetworkHandler() != null) {
             client.getNetworkHandler().sendChatCommand(command);
         }
+    }
+
+    private static BlockPos findNearestEnchantingTable(MinecraftClient client, int radius) {
+        if (client.world == null || client.player == null) return null;
+
+        BlockPos center = client.player.getBlockPos();
+        BlockPos best = null;
+        double bestDistance = Double.MAX_VALUE;
+
+        for (int x = -radius; x <= radius; x++) {
+            for (int y = -3; y <= 3; y++) {
+                for (int z = -radius; z <= radius; z++) {
+                    BlockPos pos = center.add(x, y, z);
+                    if (!client.world.getBlockState(pos).isOf(Blocks.ENCHANTING_TABLE)) continue;
+
+                    double distance = client.player.squaredDistanceTo(
+                            pos.getX() + 0.5,
+                            pos.getY() + 0.5,
+                            pos.getZ() + 0.5
+                    );
+                    if (distance < bestDistance) {
+                        best = pos.toImmutable();
+                        bestDistance = distance;
+                    }
+                }
+            }
+        }
+
+        return best;
+    }
+
+    private static int countUsableBookshelves(MinecraftClient client, BlockPos tablePos) {
+        if (client.world == null) return 0;
+
+        int power = 0;
+        for (BlockPos offset : EnchantingTableBlock.POWER_PROVIDER_OFFSETS) {
+            if (EnchantingTableBlock.canAccessPowerProvider(client.world, tablePos, offset)) {
+                power++;
+            }
+        }
+        return Math.min(15, power);
     }
 
     static List<EnchantChoice> choicesFor(String itemId) {
@@ -234,10 +293,13 @@ public final class AutoEnchanterClient implements ClientModInitializer {
 
     private static final class PendingRun {
         final String cenchantCommand;
+        final int bookshelves;
         int ticks;
+        boolean searchStarted;
 
-        PendingRun(String cenchantCommand) {
+        PendingRun(String cenchantCommand, int bookshelves) {
             this.cenchantCommand = cenchantCommand;
+            this.bookshelves = bookshelves;
         }
     }
 }
