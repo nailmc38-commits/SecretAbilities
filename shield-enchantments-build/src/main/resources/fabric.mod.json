@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "shield_enchants",
+  "version": "${version}",
+  "name": "Shield Enchantments",
+  "description": "Makes vanilla shields enchantable at enchanting tables and adds four shield enchantments.",
+  "authors": ["Neil + ChatGPT"],
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "dev.shieldenchants.ShieldEnchants"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.1",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
