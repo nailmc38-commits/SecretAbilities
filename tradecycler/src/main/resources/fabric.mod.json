@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "tradecycler",
+  "version": "${version}",
+  "name": "TradeCycler",
+  "description": "Client-side villager librarian trade reroller for Minecraft 1.21.11.",
+  "authors": ["Secret_gamer38"],
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.secret.tradecycler.TradeCyclerClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.0",
+    "fabric-api": "*",
+    "minecraft": "1.21.11",
+    "java": ">=21"
+  }
+}
