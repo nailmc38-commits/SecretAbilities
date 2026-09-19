@@ -121,7 +121,7 @@ public final class TradeCyclerClient implements ClientModInitializer {
                 return;
             }
 
-            RegistryEntry<?> profession = villager.getVillagerData().profession();
+            RegistryEntry<VillagerProfession> profession = villager.getVillagerData().profession();
             if (!profession.matchesKey(VillagerProfession.LIBRARIAN) && !profession.matchesKey(VillagerProfession.NONE)) {
                 message(client, "Target must be an unemployed villager or an unlocked librarian.");
                 return;
