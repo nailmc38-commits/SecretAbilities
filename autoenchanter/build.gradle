@@ -19,9 +19,6 @@ dependencies {
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
-    // Bundle the exact ClientCommands build for Minecraft 1.21.11 inside AutoEnchanter.
-    // The workflow downloads this LGPL-licensed jar before Gradle runs.
-    include files("libs/clientcommands-2.13.2.jar")
 }
 
 processResources {
@@ -39,4 +36,11 @@ java {
     withSourcesJar()
     sourceCompatibility = JavaVersion.VERSION_21
     targetCompatibility = JavaVersion.VERSION_21
+}
+
+
+jar {
+    from("libs/clientcommands-2.13.2.jar") {
+        into "META-INF/jars"
+    }
 }
