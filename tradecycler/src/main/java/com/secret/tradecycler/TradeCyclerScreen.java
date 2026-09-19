@@ -1,19 +1,26 @@
 package com.secret.tradecycler;
 
-import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 
 public final class TradeCyclerScreen extends Screen {
+    private static final String[] ENCHANTMENTS = {
+            "minecraft:mending",
+            "minecraft:unbreaking",
+            "minecraft:protection",
+            "minecraft:sharpness",
+            "minecraft:efficiency",
+            "minecraft:fortune",
+            "minecraft:silk_touch",
+            "minecraft:power"
+    };
+
+    private static final int[] PRICES = {10, 15, 18, 20, 24, 32, 48, 64};
+    private static final int[] DELAYS = {250, 400, 650, 1000, 1500, 2000};
+
     private final Screen parent;
     private final TradeCyclerConfig config;
-
-    private TextFieldWidget enchantmentField;
-    private TextFieldWidget levelField;
-    private TextFieldWidget priceField;
-    private TextFieldWidget delayField;
 
     public TradeCyclerScreen(Screen parent, TradeCyclerConfig config) {
         super(Text.literal("TradeCycler Settings"));
@@ -24,50 +31,74 @@ public final class TradeCyclerScreen extends Screen {
     @Override
     protected void init() {
         int center = this.width / 2;
-        int fieldX = center - 90;
-        int y = this.height / 2 - 78;
+        int y = Math.max(35, this.height / 2 - 75);
 
-        enchantmentField = new TextFieldWidget(this.textRenderer, fieldX, y, 180, 20, Text.literal("Target enchantment"));
-        enchantmentField.setMaxLength(64);
-        enchantmentField.setText(config.enchantment);
-        this.addDrawableChild(enchantmentField);
+        addDrawableChild(ButtonWidget.builder(enchantmentText(), button -> {
+            cycleEnchantment();
+            button.setMessage(enchantmentText());
+        }).dimensions(center - 110, y, 220, 20).build());
 
-        levelField = new TextFieldWidget(this.textRenderer, fieldX, y + 38, 180, 20, Text.literal("Minimum level"));
-        levelField.setMaxLength(2);
-        levelField.setText(Integer.toString(config.minimumLevel));
-        this.addDrawableChild(levelField);
+        addDrawableChild(ButtonWidget.builder(levelText(), button -> {
+            config.minimumLevel = config.minimumLevel >= 5 ? 1 : config.minimumLevel + 1;
+            button.setMessage(levelText());
+        }).dimensions(center - 110, y + 26, 220, 20).build());
 
-        priceField = new TextFieldWidget(this.textRenderer, fieldX, y + 76, 180, 20, Text.literal("Maximum emerald price"));
-        priceField.setMaxLength(2);
-        priceField.setText(Integer.toString(config.maxEmeraldPrice));
-        this.addDrawableChild(priceField);
+        addDrawableChild(ButtonWidget.builder(priceText(), button -> {
+            config.maxEmeraldPrice = nextValue(PRICES, config.maxEmeraldPrice);
+            button.setMessage(priceText());
+        }).dimensions(center - 110, y + 52, 220, 20).build());
 
-        delayField = new TextFieldWidget(this.textRenderer, fieldX, y + 114, 180, 20, Text.literal("Delay milliseconds"));
-        delayField.setMaxLength(4);
-        delayField.setText(Integer.toString(config.delayMs));
-        this.addDrawableChild(delayField);
+        addDrawableChild(ButtonWidget.builder(delayText(), button -> {
+            config.delayMs = nextValue(DELAYS, config.delayMs);
+            button.setMessage(delayText());
+        }).dimensions(center - 110, y + 78, 220, 20).build());
 
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Save & Close"), button -> saveAndClose())
-                .dimensions(center - 90, y + 148, 88, 20).build());
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Cancel"), button -> closeToParent())
-                .dimensions(center + 2, y + 148, 88, 20).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Save & Close"), button -> {
+            config.save();
+            closeToParent();
+        }).dimensions(center - 110, y + 112, 106, 20).build());
+
+        addDrawableChild(ButtonWidget.builder(Text.literal("Cancel"), button -> closeToParent())
+                .dimensions(center + 4, y + 112, 106, 20).build());
     }
 
-    private void saveAndClose() {
-        config.enchantment = enchantmentField.getText();
-        config.minimumLevel = parseInt(levelField.getText(), config.minimumLevel);
-        config.maxEmeraldPrice = parseInt(priceField.getText(), config.maxEmeraldPrice);
-        config.delayMs = parseInt(delayField.getText(), config.delayMs);
-        config.save();
-        closeToParent();
+    private Text enchantmentText() {
+        return Text.literal("Enchantment: " + shortName(config.enchantment));
     }
 
-    private int parseInt(String text, int fallback) {
-        try {
-            return Integer.parseInt(text.trim());
-        } catch (NumberFormatException ignored) {
-            return fallback;
+    private Text levelText() {
+        return Text.literal("Minimum level: " + config.minimumLevel);
+    }
+
+    private Text priceText() {
+        return Text.literal("Maximum price: " + config.maxEmeraldPrice + " emeralds");
+    }
+
+    private Text delayText() {
+        return Text.literal("Delay: " + config.delayMs + " ms");
+    }
+
+    private void cycleEnchantment() {
+        String current = config.enchantment;
+        for (int i = 0; i < ENCHANTMENTS.length; i++) {
+            if (ENCHANTMENTS[i].equals(current)) {
+                config.enchantment = ENCHANTMENTS[(i + 1) % ENCHANTMENTS.length];
+                return;
+            }
         }
+        config.enchantment = ENCHANTMENTS[0];
+    }
+
+    private int nextValue(int[] values, int current) {
+        for (int i = 0; i < values.length; i++) {
+            if (values[i] == current) return values[(i + 1) % values.length];
+            if (values[i] > current) return values[i];
+        }
+        return values[0];
+    }
+
+    private String shortName(String id) {
+        return id != null && id.startsWith("minecraft:") ? id.substring("minecraft:".length()) : String.valueOf(id);
     }
 
     private void closeToParent() {
@@ -75,15 +106,12 @@ public final class TradeCyclerScreen extends Screen {
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float deltaTicks) {
-        this.renderBackground(context, mouseX, mouseY, deltaTicks);
-        int center = this.width / 2;
-        int y = this.height / 2 - 92;
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, center, y - 18, 0xFFFFFF);
-        context.drawTextWithShadow(this.textRenderer, "Enchantment (example: minecraft:mending)", center - 90, y, 0xCFCFCF);
-        context.drawTextWithShadow(this.textRenderer, "Minimum level", center - 90, y + 38, 0xCFCFCF);
-        context.drawTextWithShadow(this.textRenderer, "Maximum emerald price", center - 90, y + 76, 0xCFCFCF);
-        context.drawTextWithShadow(this.textRenderer, "Reroll delay (ms)", center - 90, y + 114, 0xCFCFCF);
-        super.render(context, mouseX, mouseY, deltaTicks);
+    public void close() {
+        closeToParent();
+    }
+
+    @Override
+    public boolean shouldPause() {
+        return false;
     }
 }
