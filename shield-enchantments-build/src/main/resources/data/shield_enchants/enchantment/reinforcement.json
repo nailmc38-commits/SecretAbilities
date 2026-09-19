@@ -1,0 +1,33 @@
+{
+  "anvil_cost": 3,
+  "description": {
+    "translate": "enchantment.shield_enchants.reinforcement"
+  },
+  "effects": {
+    "minecraft:item_damage": [
+      {
+        "effect": {
+          "type": "minecraft:remove_binomial",
+          "chance": {
+            "type": "minecraft:linear",
+            "base": 0.18,
+            "per_level_above_first": 0.10
+          }
+        }
+      }
+    ]
+  },
+  "max_cost": {
+    "base": 42,
+    "per_level_above_first": 9
+  },
+  "max_level": 4,
+  "min_cost": {
+    "base": 8,
+    "per_level_above_first": 8
+  },
+  "primary_items": "#shield_enchants:enchantable/shield_and_books",
+  "slots": ["hand"],
+  "supported_items": "#shield_enchants:enchantable/shield_and_books",
+  "weight": 6
+}
