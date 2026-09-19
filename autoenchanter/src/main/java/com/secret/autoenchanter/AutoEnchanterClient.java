@@ -3,7 +3,6 @@ package com.secret.autoenchanter;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
@@ -75,10 +74,17 @@ public final class AutoEnchanterClient implements ClientModInitializer {
         ));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            while (openKey.wasPressed()) {
-                openBuilder(client);
+            try {
+                while (openKey.wasPressed()) {
+                    openBuilder(client);
+                }
+                if (pendingRun != null) {
+                    tickPending(client);
+                }
+            } catch (Throwable ignored) {
+                // Never let an AutoEnchanter tick exception take down the whole client.
+                pendingRun = null;
             }
-            tickPending(client);
         });
     }
 
@@ -110,11 +116,6 @@ public final class AutoEnchanterClient implements ClientModInitializer {
             return;
         }
 
-        if (!FabricLoader.getInstance().isModLoaded("clientcommands")) {
-            message(client, "ClientCommands is required for RNG cracking/manipulation.");
-            return;
-        }
-
         StringBuilder command = new StringBuilder("cenchant ").append(itemId);
         for (AutoEnchanterScreen.SelectedEnchant enchant : selected) {
             command.append(" with ").append(enchant.id()).append(" ").append(enchant.level());
@@ -140,10 +141,10 @@ public final class AutoEnchanterClient implements ClientModInitializer {
             message(client, "Enchant prediction enabled.");
         } else if (pendingRun.ticks == 10) {
             runClientCommand(client, "ccrackrng");
-            message(client, "Cracking player RNG...");
-        } else if (pendingRun.ticks == 210) {
+            message(client, "Cracking player RNG automatically...");
+        } else if (pendingRun.ticks == 610) {
             runClientCommand(client, pendingRun.cenchantCommand);
-            message(client, "Searching for your selected enchant combination...");
+            message(client, "Searching for your selected enchant combination with the bundled 1.21.11 engine...");
             pendingRun = null;
         }
     }
