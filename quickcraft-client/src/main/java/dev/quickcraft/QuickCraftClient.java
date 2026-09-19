@@ -47,7 +47,7 @@ public final class QuickCraftClient implements ClientModInitializer {
     public void onInitializeClient() {
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
             dispatcher.register(ClientCommandManager.literal("craft")
-                    .then(ClientCommandManager.argument("item", StringArgumentType.word())
+                    .then(ClientCommandManager.argument("item", StringArgumentType.greedyString())
                             .suggests((context, builder) -> {
                                 String remaining = builder.getRemaining().toLowerCase(Locale.ROOT);
                                 for (Identifier id : BuiltInRegistries.ITEM.keySet()) {
@@ -76,7 +76,7 @@ public final class QuickCraftClient implements ClientModInitializer {
             net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource source,
             String raw
     ) {
-        String normalized = raw.contains(":") ? raw : "minecraft:" + raw;
+        raw = raw.trim();\n        String normalized = raw.contains(":") ? raw : "minecraft:" + raw;
         Identifier id = Identifier.tryParse(normalized);
 
         if (id == null || !BuiltInRegistries.ITEM.containsKey(id)) {
@@ -143,14 +143,21 @@ public final class QuickCraftClient implements ClientModInitializer {
             ItemStack result = menu.getSlot(0).getItem();
 
             if (!result.isEmpty() && result.is(pendingItem)) {
-                client.gameMode.handleInventoryMouseClick(containerId, 0, 0, ClickType.PICKUP, client.player);
-                stage = Stage.WAITING_FOR_CURSOR;
-                waitTicks = 0;
+                resultSeenTicks++;
+            } else {
+                resultSeenTicks = 0;
+            }
+
+            // Let the server finish syncing the recipe-grid placement, then click the
+            // crafting output exactly like a normal left-click. Two client ticks is
+            // only about 100 ms, but avoids clicking before the placement is accepted.
+            if (resultSeenTicks >= 2) {
+                clickCraftingResult(client, containerId);
                 return;
             }
 
-            if (waitTicks > 20) {
-                fail(client, "QuickCraft timed out before the result appeared.");
+            if (waitTicks > 40) {
+                fail(client, "QuickCraft timed out before the crafting result appeared.");
             }
             return;
         }
@@ -163,19 +170,38 @@ public final class QuickCraftClient implements ClientModInitializer {
                 int destination = findInventoryDestination(menu, client, carried);
                 if (destination >= 0) {
                     client.gameMode.handleInventoryMouseClick(containerId, destination, 0, ClickType.PICKUP, client.player);
-                    success(client, carried);
-                } else {
-                    // Leave the crafted item on the cursor rather than dropping it.
-                    success(client, carried);
                 }
+
+                ItemStack crafted = carried.copy();
+                success(client, crafted);
                 return;
             }
 
-            if (waitTicks > 20) {
-                // If the server already placed the item somehow, don't repeat the command on a later table open.
-                clearPending();
+            // A few servers acknowledge the recipe-book fill before the output-click
+            // packet is accepted. Retry the output click once after a short wait.
+            if (waitTicks >= 10 && craftClickAttempts < 2) {
+                ItemStack result = menu.getSlot(0).getItem();
+                if (!result.isEmpty() && result.is(pendingItem)) {
+                    clickCraftingResult(client, containerId);
+                    return;
+                }
+            }
+
+            if (waitTicks > 40) {
+                fail(client, "QuickCraft filled the recipe, but the server did not accept the output click.");
             }
         }
+    }
+
+    private static void clickCraftingResult(Minecraft client, int containerId) {
+        if (client.gameMode == null || client.player == null) {
+            return;
+        }
+
+        client.gameMode.handleInventoryMouseClick(containerId, 0, 0, ClickType.PICKUP, client.player);
+        craftClickAttempts++;
+        stage = Stage.WAITING_FOR_CURSOR;
+        waitTicks = 0;
     }
 
     private static RecipeDisplayEntry findCraftableRecipe(Minecraft client, Item wanted) {
@@ -259,6 +285,8 @@ public final class QuickCraftClient implements ClientModInitializer {
         activeContainerId = -1;
         screenTicks = 0;
         waitTicks = 0;
+        resultSeenTicks = 0;
+        craftClickAttempts = 0;
         stage = Stage.WAITING_FOR_TABLE;
     }
 
