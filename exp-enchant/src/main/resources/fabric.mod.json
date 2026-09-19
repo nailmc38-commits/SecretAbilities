@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "exp_enchant",
+  "version": "${version}",
+  "name": "EXP Enchantment",
+  "description": "Adds a common, cheap EXP I-V enchantment for swords and shields.",
+  "authors": ["Neil + ChatGPT"],
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "dev.expenchant.ExpEnchantMod"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.1",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
