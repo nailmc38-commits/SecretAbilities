@@ -11,6 +11,11 @@
       "com.secret.autoenchanter.AutoEnchanterClient"
     ]
   },
+  "jars": [
+    {
+      "file": "META-INF/jars/clientcommands-2.13.2.jar"
+    }
+  ],
   "depends": {
     "fabricloader": ">=0.18.0",
     "fabric-api": "*",
