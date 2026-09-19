@@ -32,6 +32,8 @@ import net.minecraft.village.VillagerProfession;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.Locale;
+import java.util.HashSet;
+import java.util.Set;
 
 public final class TradeCyclerClient implements ClientModInitializer {
     private static final Controller CONTROLLER = new Controller();
@@ -88,6 +90,8 @@ public final class TradeCyclerClient implements ClientModInitializer {
         private int stateTicks;
         private int cooldown;
         private int originalSlot;
+        private final Set<BlockPos> failedPlacementSpots = new HashSet<>();
+        private boolean retryingPlacedLectern;
 
         void toggle(MinecraftClient client) {
             if (state != State.IDLE) {
@@ -136,6 +140,8 @@ public final class TradeCyclerClient implements ClientModInitializer {
             stateTicks = 0;
             cooldown = 0;
             originalSlot = client.player.getInventory().getSelectedSlot();
+            failedPlacementSpots.clear();
+            retryingPlacedLectern = false;
             state = profession.matchesKey(VillagerProfession.LIBRARIAN) ? State.OPEN_TRADE : State.WAIT_FOR_LIBRARIAN;
             message(client, "Started: " + config.enchantment + " level " + config.minimumLevel + "+, max " + config.maxEmeraldPrice + " emeralds.");
         }
@@ -263,7 +269,12 @@ public final class TradeCyclerClient implements ClientModInitializer {
         private void continueBreaking(MinecraftClient client) {
             if (!client.world.getBlockState(lecternPos).isOf(Blocks.LECTERN)) {
                 client.interactionManager.cancelBlockBreaking();
-                setState(State.WAIT_FOR_UNEMPLOYED, config.delayTicks());
+                if (retryingPlacedLectern) {
+                    retryingPlacedLectern = false;
+                    setState(State.WAIT_FOR_LECTERN_PICKUP, 2);
+                } else {
+                    setState(State.WAIT_FOR_UNEMPLOYED, config.delayTicks());
+                }
                 return;
             }
 
@@ -343,18 +354,31 @@ public final class TradeCyclerClient implements ClientModInitializer {
         }
 
         private void waitForReassign(MinecraftClient client, VillagerEntity villager) {
-            if (client.world.getBlockState(lecternPos).isOf(Blocks.LECTERN)
-                    && villager.getVillagerData().profession().matchesKey(VillagerProfession.LIBRARIAN)) {
+            boolean placed = client.world.getBlockState(lecternPos).isOf(Blocks.LECTERN);
+
+            if (placed && villager.getVillagerData().profession().matchesKey(VillagerProfession.LIBRARIAN)) {
+                failedPlacementSpots.clear();
                 setState(State.OPEN_TRADE, config.delayTicks());
                 return;
             }
 
-            if (stateTicks > 120) {
-                if (!client.world.getBlockState(lecternPos).isOf(Blocks.LECTERN)) {
-                    stop(client, "Could not place the lectern back. Make sure the original spot is clear and reachable.", false);
-                } else {
-                    stop(client, "Villager did not reclaim the lectern.", false);
-                }
+            // The right-click did not place anything. Blacklist this block and immediately try another.
+            if (!placed && stateTicks > 14) {
+                failedPlacementSpots.add(lecternPos.toImmutable());
+                BlockPos replacement = findNextPlacementOrRecycle(client, villager);
+                lecternPos = replacement.toImmutable();
+                message(client, "That spot failed. Trying another spot automatically...");
+                setState(State.PLACE_LECTERN, Math.max(2, config.delayTicks() / 2));
+                return;
+            }
+
+            // The lectern exists, but the villager refuses to claim it.
+            // Break it again, pick it up, and move it somewhere else without stopping.
+            if (placed && stateTicks > 100) {
+                failedPlacementSpots.add(lecternPos.toImmutable());
+                retryingPlacedLectern = true;
+                message(client, "Villager would not claim that spot. Moving the lectern automatically...");
+                setState(State.BREAK_LECTERN, Math.max(2, config.delayTicks() / 2));
             }
         }
 
@@ -410,6 +434,7 @@ public final class TradeCyclerClient implements ClientModInitializer {
 
                         for (int y = -1; y <= 1; y++) {
                             BlockPos candidate = center.add(x, y, z);
+                            if (failedPlacementSpots.contains(candidate)) continue;
                             if (!isClearLecternSpot(client, candidate)) continue;
 
                             double playerDistance = client.player.squaredDistanceTo(
@@ -432,6 +457,20 @@ public final class TradeCyclerClient implements ClientModInitializer {
             }
 
             return null;
+        }
+
+        private BlockPos findNextPlacementOrRecycle(MinecraftClient client, VillagerEntity villager) {
+            BlockPos replacement = findClearLecternSpot(client, villager);
+            if (replacement != null) return replacement;
+
+            // We exhausted every currently reachable candidate. Start a fresh pass instead of stopping.
+            // This lets temporary failures/server lag recover without requiring user input.
+            failedPlacementSpots.clear();
+            replacement = findClearLecternSpot(client, villager);
+            if (replacement != null) return replacement;
+
+            // Extremely cramped setup: keep retrying the current block rather than shutting the cycler off.
+            return lecternPos;
         }
 
         private boolean isClearLecternSpot(MinecraftClient client, BlockPos pos) {
@@ -513,6 +552,8 @@ public final class TradeCyclerClient implements ClientModInitializer {
             state = State.IDLE;
             stateTicks = 0;
             cooldown = 0;
+            failedPlacementSpots.clear();
+            retryingPlacedLectern = false;
             message(client, (success ? "FOUND! " : "") + reason);
         }
 
