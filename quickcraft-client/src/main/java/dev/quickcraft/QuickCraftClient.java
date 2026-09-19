@@ -35,6 +35,8 @@ public final class QuickCraftClient implements ClientModInitializer {
     private static int activeContainerId = -1;
     private static int screenTicks = 0;
     private static int waitTicks = 0;
+    private static int resultSeenTicks = 0;
+    private static int craftClickAttempts = 0;
     private static Stage stage = Stage.WAITING_FOR_TABLE;
 
     private enum Stage {
