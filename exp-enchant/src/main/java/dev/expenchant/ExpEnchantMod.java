@@ -49,7 +49,7 @@ public final class ExpEnchantMod implements ModInitializer {
                         long now = ((ServerLevel) player.level()).getGameTime();
                         long readyAt = SHIELD_XP_COOLDOWN.getOrDefault(player.getUUID(), 0L);
                         if (now >= readyAt) {
-                            player.giveExperiencePoints(shieldXp(level));
+                            player.giveExperienceLevels(3);
                             SHIELD_XP_COOLDOWN.put(player.getUUID(), now + SHIELD_COOLDOWN_TICKS);
                         }
                     }
@@ -71,16 +71,6 @@ public final class ExpEnchantMod implements ModInitializer {
         });
 
         LOGGER.info("EXP Enchantment loaded for Minecraft 1.21.11");
-    }
-
-    private static int shieldXp(int level) {
-        return switch (level) {
-            case 1 -> 4;
-            case 2 -> 8;
-            case 3 -> 12;
-            case 4 -> 16;
-            default -> 20;
-        };
     }
 
     private static int swordXp(int level) {
