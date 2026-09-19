@@ -1,0 +1,12 @@
+{
+  "anvil_cost": 6,
+  "description": {"translate": "enchantment.shield_enchants.restoration"},
+  "effects": {},
+  "max_cost": {"base": 48, "per_level_above_first": 12},
+  "max_level": 3,
+  "min_cost": {"base": 16, "per_level_above_first": 10},
+  "primary_items": "#shield_enchants:enchantable/shield_and_books",
+  "slots": ["hand"],
+  "supported_items": "#shield_enchants:enchantable/shield_and_books",
+  "weight": 3
+}
