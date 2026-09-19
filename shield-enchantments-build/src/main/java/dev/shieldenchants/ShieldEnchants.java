@@ -89,7 +89,6 @@ public final class ShieldEnchants implements ModInitializer {
                     Vec3 reflected = oldVelocity.scale(-1.15D).add(0.0D, 0.08D, 0.0D);
                     projectile.setOwner(player);
                     projectile.setDeltaMovement(reflected);
-                    projectile.hasImpulse = true;
                 }
             }
 
@@ -97,7 +96,7 @@ public final class ShieldEnchants implements ModInitializer {
             Entity attacker = source.getEntity();
             if (repulseLevel > 0 && attacker instanceof LivingEntity livingAttacker
                     && !(source.getDirectEntity() instanceof Projectile)) {
-                long now = player.serverLevel().getGameTime();
+                long now = ((ServerLevel) player.level()).getGameTime();
                 long readyAt = REPULSE_COOLDOWN_UNTIL.getOrDefault(player.getUUID(), 0L);
                 if (now >= readyAt) {
                     double strength = 0.65D + (0.35D * repulseLevel);
@@ -178,7 +177,7 @@ public final class ShieldEnchants implements ModInitializer {
             int count = 3 + level;
             List<Display.ItemDisplay> displays = AEGIS_DISPLAYS.get(player.getUUID());
 
-            if (!validDisplaySet(displays, count, player.serverLevel())) {
+            if (!validDisplaySet(displays, count, ((ServerLevel) player.level())) {
                 removeDisplays(player.getUUID());
                 displays = createDisplays(player, shield, count);
                 AEGIS_DISPLAYS.put(player.getUUID(), displays);
@@ -212,7 +211,7 @@ public final class ShieldEnchants implements ModInitializer {
 
     private static List<Display.ItemDisplay> createDisplays(ServerPlayer player, ItemStack enchantedShield, int count) {
         List<Display.ItemDisplay> displays = new ArrayList<>(count);
-        ServerLevel level = player.serverLevel();
+        ServerLevel level = (ServerLevel) player.level();
 
         for (int i = 0; i < count; i++) {
             Display.ItemDisplay display = new Display.ItemDisplay(EntityType.ITEM_DISPLAY, level);
