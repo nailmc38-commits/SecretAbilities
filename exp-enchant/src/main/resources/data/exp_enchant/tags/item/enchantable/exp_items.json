@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "#minecraft:swords",
+    "minecraft:shield",
+    "minecraft:book",
+    "minecraft:enchanted_book"
+  ]
+}
