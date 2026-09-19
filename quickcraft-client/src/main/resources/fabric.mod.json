@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "quickcraft_client",
+  "version": "${version}",
+  "name": "QuickCraft Client",
+  "description": "One-shot crafting-table autocraft command plus day/night HUD.",
+  "authors": ["Neil + ChatGPT"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "dev.quickcraft.QuickCraftClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.1",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
