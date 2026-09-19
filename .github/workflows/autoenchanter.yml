@@ -25,8 +25,25 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.2.1'
+      - name: Bundle 1.21.11 enchant engine
+        run: |
+          mkdir -p autoenchanter/libs
+          mkdir -p autoenchanter/src/main/resources/META-INF
+          curl -L --fail --retry 3 \
+            https://github.com/Earthcomputer/clientcommands/releases/download/v2.13.2/clientcommands-2.13.2.jar \
+            -o autoenchanter/libs/clientcommands-2.13.2.jar
+          curl -L --fail --retry 3 \
+            https://raw.githubusercontent.com/Earthcomputer/clientcommands/v2.13.2/LICENSE \
+            -o autoenchanter/src/main/resources/META-INF/LICENSE-clientcommands.txt
+
       - name: Build
         run: gradle -p autoenchanter clean build --stacktrace
+
+      - name: Verify bundled engine
+        run: |
+          JAR=$(find autoenchanter/build/libs -maxdepth 1 -name 'autoenchanter-*.jar' ! -name '*-sources.jar' | head -n 1)
+          echo "Checking $JAR"
+          jar tf "$JAR" | grep -i "clientcommands-2.13.2.jar"
       - name: Upload AutoEnchanter JAR
         uses: actions/upload-artifact@v4
         with:
