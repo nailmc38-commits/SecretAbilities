@@ -305,7 +305,7 @@ public final class TradeCyclerClient implements ClientModInitializer {
 
             ItemEntity dropped = findDroppedLectern(client);
             if (dropped != null) {
-                walkToward(client, dropped.getPos());
+                walkToward(client, new Vec3d(dropped.getX(), dropped.getY(), dropped.getZ()));
             } else {
                 stopAutoWalk(client);
             }
