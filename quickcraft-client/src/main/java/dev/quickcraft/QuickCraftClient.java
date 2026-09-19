@@ -76,7 +76,8 @@ public final class QuickCraftClient implements ClientModInitializer {
             net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource source,
             String raw
     ) {
-        raw = raw.trim();\n        String normalized = raw.contains(":") ? raw : "minecraft:" + raw;
+        raw = raw.trim();
+        String normalized = raw.contains(":") ? raw : "minecraft:" + raw;
         Identifier id = Identifier.tryParse(normalized);
 
         if (id == null || !BuiltInRegistries.ITEM.containsKey(id)) {
