@@ -49,7 +49,7 @@ public final class ExpEnchantMod implements ModInitializer {
                         long now = ((ServerLevel) player.level()).getGameTime();
                         long readyAt = SHIELD_XP_COOLDOWN.getOrDefault(player.getUUID(), 0L);
                         if (now >= readyAt) {
-                            player.giveExperiencePoints(level);
+                            player.giveExperiencePoints(shieldXp(level));
                             SHIELD_XP_COOLDOWN.put(player.getUUID(), now + SHIELD_COOLDOWN_TICKS);
                         }
                     }
@@ -57,7 +57,7 @@ public final class ExpEnchantMod implements ModInitializer {
             }
 
             // Sword behavior: killing a non-player living mob while the enchanted
-            // sword is in your main hand awards 1-5 bonus XP points.
+            // sword is in your main hand awards a large amount of bonus XP.
             if (!blocked
                     && !entity.isAlive()
                     && !(entity instanceof Player)
@@ -65,12 +65,32 @@ public final class ExpEnchantMod implements ModInitializer {
                 ItemStack weapon = attacker.getMainHandItem();
                 int level = enchantmentLevel(weapon, EXP);
                 if (level > 0) {
-                    attacker.giveExperiencePoints(level);
+                    attacker.giveExperiencePoints(swordXp(level));
                 }
             }
         });
 
         LOGGER.info("EXP Enchantment loaded for Minecraft 1.21.11");
+    }
+
+    private static int shieldXp(int level) {
+        return switch (level) {
+            case 1 -> 4;
+            case 2 -> 8;
+            case 3 -> 12;
+            case 4 -> 16;
+            default -> 20;
+        };
+    }
+
+    private static int swordXp(int level) {
+        return switch (level) {
+            case 1 -> 10;
+            case 2 -> 20;
+            case 3 -> 35;
+            case 4 -> 55;
+            default -> 80;
+        };
     }
 
     private static int enchantmentLevel(ItemStack stack, Identifier id) {
