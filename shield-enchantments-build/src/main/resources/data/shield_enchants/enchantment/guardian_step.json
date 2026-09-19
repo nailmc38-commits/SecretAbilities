@@ -1,0 +1,12 @@
+{
+  "anvil_cost": 4,
+  "description": {"translate": "enchantment.shield_enchants.guardian_step"},
+  "effects": {},
+  "max_cost": {"base": 38, "per_level_above_first": 10},
+  "max_level": 2,
+  "min_cost": {"base": 12, "per_level_above_first": 10},
+  "primary_items": "#shield_enchants:enchantable/shield_and_books",
+  "slots": ["hand"],
+  "supported_items": "#shield_enchants:enchantable/shield_and_books",
+  "weight": 5
+}
