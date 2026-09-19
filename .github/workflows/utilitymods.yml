@@ -1,0 +1,40 @@
+name: Build Utility Mods
+
+on:
+  push:
+    branches: [ "utilitymods-1.21.11" ]
+    paths:
+      - "villagermanager/**"
+      - "xpcalculator/**"
+      - "totemhotbar/**"
+      - ".github/workflows/utilitymods.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [villagermanager, xpcalculator, totemhotbar]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.2.1'
+      - name: Build
+        run: gradle -p ${{ matrix.project }} clean build --stacktrace
+      - name: Upload JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.project }}-1.21.11
+          path: |
+            ${{ matrix.project }}/build/libs/*.jar
+            !${{ matrix.project }}/build/libs/*-sources.jar
+          if-no-files-found: error
