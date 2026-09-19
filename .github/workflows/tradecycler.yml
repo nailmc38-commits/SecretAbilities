@@ -1,0 +1,37 @@
+name: Build TradeCycler
+
+on:
+  push:
+    branches: [ "tradecycler-1.21.11" ]
+    paths:
+      - "tradecycler/**"
+      - ".github/workflows/tradecycler.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Gradle 9.2.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.2.1'
+      - name: Build
+        run: gradle -p tradecycler clean build --stacktrace
+      - name: Upload TradeCycler JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: TradeCycler-1.21.11
+          path: |
+            tradecycler/build/libs/tradecycler-*.jar
+            !tradecycler/build/libs/*-sources.jar
+          if-no-files-found: error
