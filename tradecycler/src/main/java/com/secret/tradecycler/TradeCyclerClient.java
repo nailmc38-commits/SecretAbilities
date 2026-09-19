@@ -12,18 +12,21 @@ import net.minecraft.component.type.ItemEnchantmentsComponent;
 import net.minecraft.enchantment.Enchantment;
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.passive.VillagerEntity;
 import net.minecraft.item.AxeItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.screen.MerchantScreenHandler;
+import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.text.Text;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.math.Box;
 import net.minecraft.village.TradeOffer;
 import net.minecraft.village.VillagerProfession;
 import org.lwjgl.glfw.GLFW;
@@ -282,24 +285,54 @@ public final class TradeCyclerClient implements ClientModInitializer {
         }
 
         private void waitForLecternPickup(MinecraftClient client) {
-            int slot = findLecternHotbarSlot(client);
+            int slot = ensureLecternInHotbar(client);
             if (slot >= 0) {
+                stopAutoWalk(client);
+
+                VillagerEntity villager = getVillager(client);
+                BlockPos placement = villager == null ? null : findClearLecternSpot(client, villager);
+                if (placement == null) {
+                    stop(client, "Picked up the lectern, but I could not find a clear place for it nearby.", false);
+                    return;
+                }
+
+                lecternPos = placement.toImmutable();
                 client.player.getInventory().setSelectedSlot(slot);
+                message(client, "Lectern picked up. Placing it at " + lecternPos.getX() + ", " + lecternPos.getY() + ", " + lecternPos.getZ() + ".");
                 setState(State.PLACE_LECTERN, config.delayTicks());
                 return;
             }
-            if (stateTicks > 80) {
-                stop(client, "Lectern was not picked up into the hotbar. Stand closer and keep a hotbar slot free.", false);
+
+            ItemEntity dropped = findDroppedLectern(client);
+            if (dropped != null) {
+                walkToward(client, dropped.getPos());
+            } else {
+                stopAutoWalk(client);
+            }
+
+            if (stateTicks > 180) {
+                stop(client, "I could not pick up the dropped lectern. Make sure it did not fall somewhere unreachable.", false);
             }
         }
 
         private void placeLectern(MinecraftClient client) {
-            int slot = findLecternHotbarSlot(client);
+            int slot = ensureLecternInHotbar(client);
             if (slot < 0) {
                 setState(State.WAIT_FOR_LECTERN_PICKUP, 0);
                 return;
             }
+            stopAutoWalk(client);
             client.player.getInventory().setSelectedSlot(slot);
+
+            if (!isClearLecternSpot(client, lecternPos)) {
+                VillagerEntity villager = getVillager(client);
+                BlockPos replacement = villager == null ? null : findClearLecternSpot(client, villager);
+                if (replacement == null) {
+                    stop(client, "The placement spot became blocked and no other clear spot was available.", false);
+                    return;
+                }
+                lecternPos = replacement.toImmutable();
+            }
 
             BlockPos support = lecternPos.down();
             Vec3d hitPos = new Vec3d(lecternPos.getX() + 0.5, lecternPos.getY(), lecternPos.getZ() + 0.5);
@@ -325,6 +358,135 @@ public final class TradeCyclerClient implements ClientModInitializer {
             }
         }
 
+        private ItemEntity findDroppedLectern(MinecraftClient client) {
+            if (client.world == null || lecternPos == null) return null;
+
+            Box search = new Box(lecternPos).expand(7.0);
+            ItemEntity best = null;
+            double bestDistance = Double.MAX_VALUE;
+            for (ItemEntity item : client.world.getEntitiesByClass(ItemEntity.class, search,
+                    entity -> entity.isAlive() && entity.getStack().isOf(Items.LECTERN))) {
+                double distance = client.player.squaredDistanceTo(item);
+                if (distance < bestDistance) {
+                    best = item;
+                    bestDistance = distance;
+                }
+            }
+            return best;
+        }
+
+        private void walkToward(MinecraftClient client, Vec3d target) {
+            if (client.player == null) return;
+
+            double dx = target.x - client.player.getX();
+            double dz = target.z - client.player.getZ();
+            double horizontal = dx * dx + dz * dz;
+
+            if (horizontal <= 1.2 * 1.2) {
+                stopAutoWalk(client);
+                return;
+            }
+
+            float yaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0);
+            client.player.setYaw(yaw);
+            client.player.setHeadYaw(yaw);
+            client.options.forwardKey.setPressed(true);
+        }
+
+        private void stopAutoWalk(MinecraftClient client) {
+            client.options.forwardKey.setPressed(false);
+            client.options.jumpKey.setPressed(false);
+        }
+
+        private BlockPos findClearLecternSpot(MinecraftClient client, VillagerEntity villager) {
+            BlockPos center = villager.getBlockPos();
+            BlockPos best = null;
+            double bestScore = Double.MAX_VALUE;
+
+            for (int radius = 1; radius <= 4; radius++) {
+                for (int x = -radius; x <= radius; x++) {
+                    for (int z = -radius; z <= radius; z++) {
+                        if (Math.max(Math.abs(x), Math.abs(z)) != radius) continue;
+
+                        for (int y = -1; y <= 1; y++) {
+                            BlockPos candidate = center.add(x, y, z);
+                            if (!isClearLecternSpot(client, candidate)) continue;
+
+                            double playerDistance = client.player.squaredDistanceTo(
+                                    candidate.getX() + 0.5,
+                                    candidate.getY() + 0.5,
+                                    candidate.getZ() + 0.5
+                            );
+                            if (playerDistance > 20.25) continue;
+
+                            double villagerDistance = center.getSquaredDistance(candidate);
+                            double score = villagerDistance + playerDistance * 0.15;
+                            if (score < bestScore) {
+                                best = candidate.toImmutable();
+                                bestScore = score;
+                            }
+                        }
+                    }
+                }
+                if (best != null) return best;
+            }
+
+            return null;
+        }
+
+        private boolean isClearLecternSpot(MinecraftClient client, BlockPos pos) {
+            if (client.world == null || client.player == null) return false;
+            if (!client.world.getBlockState(pos).isAir()) return false;
+            if (client.world.getBlockState(pos.down()).isAir()) return false;
+            if (!client.world.getFluidState(pos).isEmpty()) return false;
+
+            BlockPos playerFeet = client.player.getBlockPos();
+            if (pos.equals(playerFeet) || pos.equals(playerFeet.up())) return false;
+
+            VillagerEntity villager = getVillager(client);
+            if (villager != null) {
+                BlockPos villagerFeet = villager.getBlockPos();
+                if (pos.equals(villagerFeet) || pos.equals(villagerFeet.up())) return false;
+            }
+
+            return true;
+        }
+
+        private int ensureLecternInHotbar(MinecraftClient client) {
+            int hotbar = findLecternHotbarSlot(client);
+            if (hotbar >= 0) return hotbar;
+
+            int inventorySlot = findLecternInventorySlot(client);
+            if (inventorySlot < 9) return inventorySlot;
+            if (inventorySlot < 0) return -1;
+
+            int emptyHotbar = findEmptyHotbarSlot(client);
+            if (emptyHotbar < 0) return -1;
+
+            client.interactionManager.clickSlot(
+                    client.player.currentScreenHandler.syncId,
+                    inventorySlot,
+                    emptyHotbar,
+                    SlotActionType.SWAP,
+                    client.player
+            );
+            return findLecternHotbarSlot(client);
+        }
+
+        private int findLecternInventorySlot(MinecraftClient client) {
+            for (int i = 0; i < client.player.getInventory().size(); i++) {
+                if (client.player.getInventory().getStack(i).isOf(Items.LECTERN)) return i;
+            }
+            return -1;
+        }
+
+        private int findEmptyHotbarSlot(MinecraftClient client) {
+            for (int i = 0; i < 9; i++) {
+                if (client.player.getInventory().getStack(i).isEmpty()) return i;
+            }
+            return -1;
+        }
+
         private void selectBreakTool(MinecraftClient client) {
             for (int i = 0; i < 9; i++) {
                 ItemStack stack = client.player.getInventory().getStack(i);
@@ -343,6 +505,7 @@ public final class TradeCyclerClient implements ClientModInitializer {
         }
 
         private void stop(MinecraftClient client, String reason, boolean success) {
+            stopAutoWalk(client);
             if (client.interactionManager != null) client.interactionManager.cancelBlockBreaking();
             if (client.player != null && originalSlot >= 0 && originalSlot < 9) {
                 client.player.getInventory().setSelectedSlot(originalSlot);
