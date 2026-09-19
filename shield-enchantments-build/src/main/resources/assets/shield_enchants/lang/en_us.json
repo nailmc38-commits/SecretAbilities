@@ -2,5 +2,10 @@
   "enchantment.shield_enchants.aegis": "Aegis",
   "enchantment.shield_enchants.deflection": "Deflection",
   "enchantment.shield_enchants.reinforcement": "Reinforcement",
-  "enchantment.shield_enchants.repulse": "Repulse"
+  "enchantment.shield_enchants.repulse": "Repulse",
+  "enchantment.shield_enchants.bastion": "Bastion",
+  "enchantment.shield_enchants.guardian_step": "Guardian Step",
+  "enchantment.shield_enchants.flame_ward": "Flame Ward",
+  "enchantment.shield_enchants.wardheart": "Wardheart",
+  "enchantment.shield_enchants.restoration": "Restoration"
 }
