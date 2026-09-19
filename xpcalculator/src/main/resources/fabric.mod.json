@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "xpcalculator",
+  "version": "${version}",
+  "name": "XP Calculator",
+  "description": "Client-side exact XP-to-level calculator.",
+  "authors": ["Secret_gamer38"],
+  "environment": "client",
+  "entrypoints": { "client": ["com.secret.xpcalculator.XPCalculatorClient"] },
+  "depends": {
+    "fabricloader": ">=0.18.0",
+    "fabric-api": "*",
+    "minecraft": "1.21.11",
+    "java": ">=21"
+  }
+}
