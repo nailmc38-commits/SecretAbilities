@@ -1,0 +1,20 @@
+{
+  "anvil_cost": 1,
+  "description": {
+    "translate": "enchantment.exp_enchant.exp"
+  },
+  "effects": {},
+  "max_cost": {
+    "base": 11,
+    "per_level_above_first": 3
+  },
+  "max_level": 5,
+  "min_cost": {
+    "base": 1,
+    "per_level_above_first": 3
+  },
+  "primary_items": "#exp_enchant:enchantable/exp_items",
+  "slots": ["hand"],
+  "supported_items": "#exp_enchant:enchantable/exp_items",
+  "weight": 10
+}
