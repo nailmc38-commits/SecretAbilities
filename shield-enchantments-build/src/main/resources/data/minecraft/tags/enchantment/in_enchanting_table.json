@@ -4,6 +4,11 @@
     "shield_enchants:aegis",
     "shield_enchants:deflection",
     "shield_enchants:reinforcement",
-    "shield_enchants:repulse"
+    "shield_enchants:repulse",
+    "shield_enchants:bastion",
+    "shield_enchants:guardian_step",
+    "shield_enchants:flame_ward",
+    "shield_enchants:wardheart",
+    "shield_enchants:restoration"
   ]
 }
