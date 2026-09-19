@@ -177,7 +177,7 @@ public final class ShieldEnchants implements ModInitializer {
             int count = 3 + level;
             List<Display.ItemDisplay> displays = AEGIS_DISPLAYS.get(player.getUUID());
 
-            if (!validDisplaySet(displays, count, ((ServerLevel) player.level())) {
+            if (!validDisplaySet(displays, count, (ServerLevel) player.level())) {
                 removeDisplays(player.getUUID());
                 displays = createDisplays(player, shield, count);
                 AEGIS_DISPLAYS.put(player.getUUID(), displays);
