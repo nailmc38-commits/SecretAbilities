@@ -9,4 +9,8 @@ public final class EngineBridge {
         Configs.setMinEnchantBookshelves(shelves);
         Configs.setMaxEnchantBookshelves(shelves);
     }
+
+    public static boolean isPlayerSeedCracked() {
+        return Configs.playerCrackState.knowsSeed();
+    }
 }
