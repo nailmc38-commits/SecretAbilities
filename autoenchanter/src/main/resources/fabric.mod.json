@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "autoenchanter",
+  "version": "${version}",
+  "name": "AutoEnchanter",
+  "description": "GUI front-end for client-side enchantment manipulation on Minecraft 1.21.11.",
+  "authors": ["Secret_gamer38"],
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.secret.autoenchanter.AutoEnchanterClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.0",
+    "fabric-api": "*",
+    "minecraft": "1.21.11",
+    "java": ">=21"
+  },
+  "suggests": {
+    "clientcommands": "*"
+  }
+}
