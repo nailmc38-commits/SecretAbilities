@@ -174,9 +174,19 @@ public final class SurvScreen extends Screen {
         int w = Math.min(420, width - 30);
         int x = width / 2 - w / 2;
 
-        addButton(x, y, w, "OPEN ENCHANT LAB // HOLD ITEM OR BOOK",
+        primaryField = field(x, y, w, "sharpness 5, unbreaking 3, mending 1");
+
+        addButton(x, y + 27, w, "START AUTO ENCHANT // HOLD TARGET ITEM",
+                b -> {
+                    String spec = primaryField.getText().trim();
+                    if (!spec.isBlank() && !SurvOsClient.LEGACY.startEnchantDirect(client, spec))
+                        SurvOsClient.notice("Could not start enchant automation.");
+                });
+
+        addButton(x, y + 54, w, "OPEN VISUAL ENCHANT LAB",
                 b -> SurvOsClient.LEGACY.openEnchantBuilder(client));
-        addButton(x, y + 28, w,
+
+        addButton(x, y + 81, w,
                 "ENGINE // " + online(SurvOsClient.LEGACY.enchantAvailable()),
                 b -> {});
     }
