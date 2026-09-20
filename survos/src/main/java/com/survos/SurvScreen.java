@@ -465,6 +465,18 @@ public final class SurvScreen extends Screen {
             ctx.fill(x, b - 1, r, b, edge);
             ctx.fill(x, y, x + 1, b, edge);
             ctx.fill(r - 1, y, r, b, edge);
+
+            int textColor = active
+                    ? (strong ? 0xFFF2FFFF : 0xFFE2EEF3)
+                    : 0xFF66747C;
+
+            ctx.drawCenteredTextWithShadow(
+                    MinecraftClient.getInstance().textRenderer,
+                    getMessage(),
+                    x + getWidth() / 2,
+                    y + (getHeight() - 8) / 2,
+                    textColor
+            );
         }
 
         @Override
