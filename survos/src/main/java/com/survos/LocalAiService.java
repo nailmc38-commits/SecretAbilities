@@ -225,12 +225,14 @@ apply_loadout {name:"MINING|COMBAT|BUILDING"}
 open_villager {}
 toggle_villager {}
 open_enchant {}
+craft_item {item:string, count?:number, max?:boolean}
 open_craft {}
 set_hud {module:string, enabled:boolean}
 find_storage {item:string}
 session_stats {}
 No arbitrary commands, no server/admin actions, no bypassing anti-cheat, and no hidden/x-ray block knowledge.
 When asked to mine a resource, use start_task MINING with target/count.
+When asked to craft something, use craft_item. Use max:true for "as many as possible".
 When asked to stop under a condition, add the matching rule as well as starting the task.
 When no action is needed, actions must be [].
 
