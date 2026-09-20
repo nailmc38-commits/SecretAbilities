@@ -34,6 +34,7 @@ public final class SurvOsClient implements ClientModInitializer {
     public static final WorldMemory MEMORY = new WorldMemory();
     public static final RuleEngine RULES = new RuleEngine();
     public static final StatsTracker STATS = new StatsTracker();
+    public static final PlayerControlService CONTROL = new PlayerControlService();
 
     private static KeyBinding menuKey, voiceKey, emergencyKey;
     private static long armedUntil;
@@ -62,6 +63,16 @@ public final class SurvOsClient implements ClientModInitializer {
                 "key.survos.emergency", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_F7, KeyBinding.Category.MISC));
 
         VOICE.setListener(SurvOsClient::onVoiceHeard);
+
+        if (CONFIG.voiceEnabled && CONFIG.voiceAutoStart) {
+            voiceStarted = true;
+            VOICE.start(CONFIG);
+        }
+        if (CONFIG.aiEnabled && CONFIG.aiAutoStart) {
+            aiStarted = true;
+            AI.ensureStarted();
+        }
+
         ClientTickEvents.END_CLIENT_TICK.register(SurvOsClient::tick);
         HudElementRegistry.attachElementBefore(
                 VanillaHudElements.CHAT,
@@ -99,26 +110,44 @@ public final class SurvOsClient implements ClientModInitializer {
         }
 
         while (voiceKey.wasPressed()) {
-            VOICE.toggle(CONFIG);
-            String msg = VOICE.isRunning() ? "Voice listening." : "Voice disabled.";
-            notice(msg);
-            TTS.speak(msg, "MINIMAL");
+            if (VOICE.isRunning()) {
+                VOICE.stop();
+                CONFIG.voiceEnabled = false;
+                CONFIG.voiceAutoStart = false;
+                voiceStarted = false;
+                notice("Voice off.");
+            } else {
+                CONFIG.voiceEnabled = true;
+                CONFIG.voiceAutoStart = true;
+                voiceStarted = true;
+                VOICE.start(CONFIG);
+                notice("Voice listening.");
+            }
+            CONFIG.save();
         }
 
         while (emergencyKey.wasPressed()) {
             AUTOMATION.stop(client, "Emergency stop");
+            CONTROL.stop(client);
             TTS.stopAll();
-            TTS.speak("Automation stopped.", "TACTICAL");
+            TTS.speak("Stopped.", "TACTICAL");
         }
 
         LEGACY.tick(client);
+        ticks++;
 
-        if (client.player == null || client.world == null) {
-            voiceStarted = false;
-            return;
+        if (CONFIG.voiceEnabled && CONFIG.voiceAutoStart && !VOICE.isRunning()) {
+            VOICE.start(CONFIG);
+            voiceStarted = true;
         }
 
-        ticks++;
+        if (CONFIG.aiEnabled && CONFIG.aiAutoStart && !AI.ready() && ticks % 80 == 0) {
+            AI.ensureStarted();
+        }
+
+        if (client.player == null || client.world == null) {
+            return;
+        }
         MEMORY.tick(client);
         STATS.tick(client);
         handleDimensionProfile(client);
@@ -128,14 +157,8 @@ public final class SurvOsClient implements ClientModInitializer {
             InventoryManager.tickAutoHotbar(client);
         }
 
-        if (!voiceStarted && ticks > 40 && CONFIG.voiceEnabled && CONFIG.voiceAutoStart) {
-            voiceStarted = true;
-            VOICE.start(CONFIG);
-        }
-
-        if (!aiStarted && ticks > 55 && CONFIG.aiEnabled && CONFIG.aiAutoStart) {
-            aiStarted = true;
-            AI.ensureStarted();
+        if (!AUTOMATION.active()) {
+            CONTROL.tick(client);
         }
 
         AUTOMATION.tick(client, CONFIG);
@@ -180,6 +203,7 @@ public final class SurvOsClient implements ClientModInitializer {
     }
 
     private static void onVoiceHeard(String raw) {
+        if (TTS.isSpeaking()) return;
         MinecraftClient client = MinecraftClient.getInstance();
         client.execute(() -> handleVoice(client, raw));
     }
@@ -206,6 +230,7 @@ public final class SurvOsClient implements ClientModInitializer {
 
         if (containsAny(q, "stop", "cancel everything", "stop everything", "cancel automation")) {
             AUTOMATION.stop(client, "Voice command");
+            CONTROL.stop(client);
             TTS.stopAll();
             TTS.speak("Stopped.", "TACTICAL");
             return;
@@ -225,6 +250,7 @@ public final class SurvOsClient implements ClientModInitializer {
 
         if (containsAny(q, "emergency", "abort")) {
             AUTOMATION.stop(client, "Voice abort");
+            CONTROL.stop(client);
             TTS.stopAll();
             TTS.speak("All automation aborted.", "TACTICAL");
             return;
@@ -316,7 +342,7 @@ public final class SurvOsClient implements ClientModInitializer {
         StringBuilder inv = new StringBuilder();
         int shown = 0;
         for (var e : counts.entrySet()) {
-            if (shown++ >= 22) break;
+            if (shown++ >= 10) break;
             if (!inv.isEmpty()) inv.append(", ");
             inv.append(e.getKey()).append(" x").append(e.getValue());
         }
