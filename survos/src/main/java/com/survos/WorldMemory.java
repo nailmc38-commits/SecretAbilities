@@ -52,6 +52,11 @@ public final class WorldMemory {
         if(c.player==null||c.world==null)return;
         data.waypoints.put(clean(name),point(c)); save();
     }
+
+    public void setWaypointAt(String name, BlockPos pos, String dimension){
+        if(pos==null||dimension==null)return;
+        data.waypoints.put(clean(name),new Point(pos,dimension)); save();
+    }
     public Point waypoint(String name){return data.waypoints.get(clean(name));}
     public Set<String> waypointNames(){return Collections.unmodifiableSet(data.waypoints.keySet());}
 
