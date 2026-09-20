@@ -24,6 +24,16 @@ public final class AiToolRouter {
                     SurvOsClient.AUTOMATION.start(mode,c);
                     yield "started " + m;
                 }
+                case "queue_task" -> {
+                    String m = str(a,"mode","MINING").toUpperCase(Locale.ROOT);
+                    String target = str(a,"target","");
+                    int count = num(a,"count",0);
+                    SurvOsClient.AUTOMATION.queue(AutomationManager.Mode.valueOf(m),target,count);
+                    yield "queued " + m;
+                }
+                case "return_start" -> {
+                    yield SurvOsClient.AUTOMATION.returnToTaskStart(c) ? "returning" : "no task start";
+                }
                 case "stop_task" -> { SurvOsClient.AUTOMATION.stop(c,"AI request"); yield "stopped"; }
                 case "pause_task" -> { SurvOsClient.AUTOMATION.pause(c); yield "paused"; }
                 case "resume_task" -> { SurvOsClient.AUTOMATION.resume(); yield "resumed"; }
