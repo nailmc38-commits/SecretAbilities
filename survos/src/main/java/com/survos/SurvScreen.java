@@ -1,9 +1,12 @@
 package com.survos;
 
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.gui.screen.narration.NarrationMessageBuilder;
+import net.minecraft.client.gui.widget.PressableWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
+import net.minecraft.client.input.AbstractInput;
 import net.minecraft.client.input.KeyInput;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
@@ -12,11 +15,7 @@ import org.lwjgl.glfw.GLFW;
 import java.util.List;
 
 public final class SurvScreen extends Screen {
-    public enum Tab {
-        DASHBOARD, HUD, CRAFT, VILLAGER, ENCHANT,
-        AUTOMATION, VOICE, AI, INVENTORY, WORLD,
-        PROFILES, KEYBINDS, ADVANCED
-    }
+    public enum Tab { DASHBOARD, AI, AUTOMATION, TOOLS, SETTINGS }
 
     private Tab tab;
     private TextFieldWidget primaryField;
@@ -37,532 +36,368 @@ public final class SurvScreen extends Screen {
         primaryField = null;
         secondaryField = null;
 
-        int navY = 38;
-        int cols = 5;
-        int bw = Math.max(54, Math.min(82, (width - 42) / cols));
+        int panelW = Math.min(520, width - 28);
+        int x = (width - panelW) / 2;
+        int navY = 44;
+        int gap = 5;
+        int bw = (panelW - gap * 4) / 5;
+
         Tab[] tabs = Tab.values();
-
         for (int i = 0; i < tabs.length; i++) {
-            int row = i / cols;
-            int col = i % cols;
-            int total = bw * cols + 4 * (cols - 1);
-            int x = (width - total) / 2 + col * (bw + 4);
-            int y = navY + row * 23;
             Tab t = tabs[i];
-
-            addDrawableChild(ButtonWidget.builder(
-                    Text.literal(shortName(t)).formatted(t == tab ? Formatting.AQUA : Formatting.GRAY),
-                    b -> {
+            addButton(
+                    x + i * (bw + gap),
+                    navY,
+                    bw,
+                    t == Tab.DASHBOARD ? "HOME" : t.name(),
+                    () -> {
                         tab = t;
                         rebuild();
-                    }
-            ).dimensions(x, y, bw, 20).build());
+                    },
+                    t == tab
+            );
         }
 
-        int top = navY + ((tabs.length - 1) / cols + 1) * 23 + 7;
-
+        int top = 78;
         switch (tab) {
-            case DASHBOARD -> dashboard(top);
-            case HUD -> hud(top);
-            case CRAFT -> craft(top);
-            case VILLAGER -> villager(top);
-            case ENCHANT -> enchant(top);
-            case AUTOMATION -> automation(top);
-            case VOICE -> voice(top);
-            case AI -> ai(top);
-            case INVENTORY -> inventory(top);
-            case WORLD -> world(top);
-            case PROFILES -> profiles(top);
-            case KEYBINDS -> keybinds(top);
-            case ADVANCED -> advanced(top);
+            case DASHBOARD -> dashboard(x, top, panelW);
+            case AI -> ai(x, top, panelW);
+            case AUTOMATION -> automation(x, top, panelW);
+            case TOOLS -> tools(x, top, panelW);
+            case SETTINGS -> settings(x, top, panelW);
         }
     }
 
-    private void dashboard(int y) {
-        int w = Math.min(420, width - 30);
-        int x = width / 2 - w / 2;
+    private void dashboard(int x, int y, int w) {
+        primaryField = field(x + 12, y + 40, w - 102, "Ask SURV or tell it what to do...");
+        addButton(x + w - 84, y + 40, 72, "SEND", () -> {
+            String q = primaryField.getText().trim();
+            if (!q.isBlank()) SurvOsClient.askAi(q, false);
+        }, true);
 
-        addButton(x, y, w,
-                "AI // " + SurvOsClient.AI.status() + "   VOICE // " + SurvOsClient.VOICE.status(),
-                b -> { tab = Tab.AI; rebuild(); });
+        addButton(x + 12, y + 78, (w - 30) / 2,
+                "VOICE  " + (SurvOsClient.VOICE.isRunning() ? "LISTENING" : "OFF"),
+                this::toggleVoice, SurvOsClient.VOICE.isRunning());
 
-        addButton(x, y + 25, w,
-                "PROFILE // " + SurvOsClient.CONFIG.profile,
-                b -> { tab = Tab.PROFILES; rebuild(); });
-
-        addButton(x, y + 50, w,
-                "AUTO // " + SurvOsClient.AUTOMATION.mode() + " // " + SurvOsClient.AUTOMATION.state(),
-                b -> { tab = Tab.AUTOMATION; rebuild(); });
-
-        addButton(x, y + 75, w,
-                "CRAFT " + online(SurvOsClient.LEGACY.quickAvailable())
-                        + "  •  VILLY " + online(SurvOsClient.LEGACY.tradeAvailable())
-                        + "  •  ENCHANT " + online(SurvOsClient.LEGACY.enchantAvailable()),
-                b -> {});
-
-        addButton(x, y + 100, w,
-                "WORLD MEMORY // " + SurvOsClient.MEMORY.waypointNames().size()
-                        + " waypoints • " + SurvOsClient.MEMORY.routeNames().size() + " routes",
-                b -> { tab = Tab.WORLD; rebuild(); });
-
-        addButton(x, y + 125, w,
-                "SESSION // " + SurvOsClient.STATS.summary(),
-                b -> {});
-    }
-
-    private void hud(int y) {
-        int x = width / 2 - 190;
-
-        addToggle(x, y, "HUD", () -> SurvOsClient.CONFIG.hudEnabled, v -> SurvOsClient.CONFIG.hudEnabled = v);
-        addToggle(x + 194, y, "Compact", () -> SurvOsClient.CONFIG.compactHud, v -> SurvOsClient.CONFIG.compactHud = v);
-        addToggle(x, y + 25, "Health", () -> SurvOsClient.CONFIG.showHealth, v -> SurvOsClient.CONFIG.showHealth = v);
-        addToggle(x + 194, y + 25, "Hunger", () -> SurvOsClient.CONFIG.showHunger, v -> SurvOsClient.CONFIG.showHunger = v);
-        addToggle(x, y + 50, "Armor", () -> SurvOsClient.CONFIG.showArmor, v -> SurvOsClient.CONFIG.showArmor = v);
-        addToggle(x + 194, y + 50, "XP", () -> SurvOsClient.CONFIG.showXp, v -> SurvOsClient.CONFIG.showXp = v);
-        addToggle(x, y + 75, "Coordinates", () -> SurvOsClient.CONFIG.showCoords, v -> SurvOsClient.CONFIG.showCoords = v);
-        addToggle(x + 194, y + 75, "Day/Night", () -> SurvOsClient.CONFIG.showDayNight, v -> SurvOsClient.CONFIG.showDayNight = v);
-        addToggle(x, y + 100, "Durability", () -> SurvOsClient.CONFIG.showDurability, v -> SurvOsClient.CONFIG.showDurability = v);
-        addToggle(x + 194, y + 100, "Inventory", () -> SurvOsClient.CONFIG.showInventory, v -> SurvOsClient.CONFIG.showInventory = v);
-        addToggle(x, y + 125, "Hostiles", () -> SurvOsClient.CONFIG.showHostiles, v -> SurvOsClient.CONFIG.showHostiles = v);
-        addToggle(x + 194, y + 125, "Voice/AI", () -> SurvOsClient.CONFIG.showVoice, v -> SurvOsClient.CONFIG.showVoice = v);
-
-        addToggle(x, y + 150, "HUD right side", () -> SurvOsClient.CONFIG.hudRight, v -> SurvOsClient.CONFIG.hudRight = v);
-
-        addButton(x + 194, y + 150, 186,
-                "THEME // " + SurvOsClient.CONFIG.hudTheme,
-                b -> {
-                    SurvOsClient.CONFIG.hudTheme = switch (SurvOsClient.CONFIG.hudTheme) {
-                        case "CYAN" -> "AMBER";
-                        case "AMBER" -> "GREEN";
-                        case "GREEN" -> "RED";
-                        case "RED" -> "MONO";
-                        default -> "CYAN";
-                    };
-                    SurvOsClient.CONFIG.save();
+        addButton(x + 18 + (w - 30) / 2, y + 78, (w - 30) / 2,
+                "AI  " + SurvOsClient.AI.status(),
+                () -> {
+                    if (SurvOsClient.AI.ready()) SurvOsClient.AI.stop();
+                    else SurvOsClient.AI.ensureStarted();
                     rebuild();
-                });
+                }, SurvOsClient.AI.ready());
 
-        addButton(x, y + 175, 380,
-                "HUD LINES // " + SurvOsClient.CONFIG.maxHudLines,
-                b -> {
-                    SurvOsClient.CONFIG.maxHudLines += 2;
-                    if (SurvOsClient.CONFIG.maxHudLines > 14) SurvOsClient.CONFIG.maxHudLines = 6;
-                    SurvOsClient.CONFIG.save();
+        int third = (w - 36) / 3;
+        addButton(x + 12, y + 116, third, "MINE",
+                () -> SurvOsClient.AUTOMATION.start(AutomationManager.Mode.MINING, client), false);
+        addButton(x + 18 + third, y + 116, third, "MOB GRIND",
+                () -> SurvOsClient.AUTOMATION.start(AutomationManager.Mode.MOB_GRIND, client), false);
+        addButton(x + 24 + third * 2, y + 116, third, "STOP",
+                () -> {
+                    SurvOsClient.AUTOMATION.stop(client, "User stop");
+                    SurvOsClient.CONTROL.stop(client);
+                }, true);
+
+        addButton(x + 12, y + 154, w - 24,
+                "AUTO  " + SurvOsClient.AUTOMATION.mode() + "  •  " + SurvOsClient.AUTOMATION.state(),
+                () -> { tab = Tab.AUTOMATION; rebuild(); }, false);
+
+        addButton(x + 12, y + 184, w - 24,
+                "LAST  " + trim(SurvOsClient.AI.lastReply(), 64),
+                () -> { tab = Tab.AI; rebuild(); }, false);
+    }
+
+    private void ai(int x, int y, int w) {
+        primaryField = field(x + 12, y + 38, w - 104, "Talk to SURV...");
+        addButton(x + w - 84, y + 38, 72, "ASK",
+                () -> {
+                    String q = primaryField.getText().trim();
+                    if (!q.isBlank()) SurvOsClient.askAi(q, false);
+                }, true);
+
+        addButton(x + 12, y + 76, w - 24,
+                "STATUS  " + SurvOsClient.AI.status(),
+                () -> {
+                    if (SurvOsClient.AI.ready()) SurvOsClient.AI.stop();
+                    else SurvOsClient.AI.ensureStarted();
                     rebuild();
-                });
-    }
+                }, SurvOsClient.AI.ready());
 
-    private void craft(int y) {
-        int w = Math.min(420, width - 30);
-        int x = width / 2 - w / 2;
-
-        primaryField = field(x, y, 285, "item id, e.g. torch");
-        secondaryField = field(x + 291, y, w - 291, "count");
-
-        addButton(x, y + 27, 204,
-                "CRAFT X",
-                b -> {
-                    String item = primaryField.getText().trim();
-                    int count = parseInt(secondaryField.getText(), 1);
-                    if (!item.isBlank())
-                        SurvOsClient.LEGACY.queueCraftDirect(client, item, count, false);
-                });
-
-        addButton(x + 210, y + 27, 204,
-                "CRAFT MAX",
-                b -> {
-                    String item = primaryField.getText().trim();
-                    if (!item.isBlank())
-                        SurvOsClient.LEGACY.queueCraftDirect(client, item, 1, true);
-                });
-
-        addButton(x, y + 54, w,
-                "QUEUE // " + SurvOsClient.LEGACY.craftQueueStatus()
-                        + "   ENGINE // " + online(SurvOsClient.LEGACY.quickAvailable()),
-                b -> SurvOsClient.LEGACY.cancelCraftQueue());
-    }
-
-    private void villager(int y) {
-        int w = Math.min(420, width - 30);
-        int x = width / 2 - w / 2;
-
-        addButton(x, y, w, "OPEN VILLAGER TARGET SETTINGS",
-                b -> SurvOsClient.LEGACY.openVillagerSettings(client, this));
-        addButton(x, y + 28, w, "START / STOP CYCLER",
-                b -> SurvOsClient.LEGACY.toggleVillager(client));
-        addButton(x, y + 56, w,
-                "ENGINE // " + online(SurvOsClient.LEGACY.tradeAvailable()),
-                b -> {});
-    }
-
-    private void enchant(int y) {
-        int w = Math.min(420, width - 30);
-        int x = width / 2 - w / 2;
-
-        primaryField = field(x, y, w, "sharpness 5, unbreaking 3, mending 1");
-
-        addButton(x, y + 27, w, "START AUTO ENCHANT // HOLD TARGET ITEM",
-                b -> {
-                    String spec = primaryField.getText().trim();
-                    if (!spec.isBlank() && !SurvOsClient.LEGACY.startEnchantDirect(client, spec))
-                        SurvOsClient.notice("Could not start enchant automation.");
-                });
-
-        addButton(x, y + 54, w, "OPEN VISUAL ENCHANT LAB",
-                b -> SurvOsClient.LEGACY.openEnchantBuilder(client));
-
-        addButton(x, y + 81, w,
-                "ENGINE // " + online(SurvOsClient.LEGACY.enchantAvailable()),
-                b -> {});
-    }
-
-    private void automation(int y) {
-        int x = width / 2 - 190;
-
-        primaryField = field(x, y, 245, "goal item, e.g. iron");
-        secondaryField = field(x + 251, y, 129, "count");
-
-        addButton(x, y + 27, 186, "SET GOAL",
-                b -> {
-                    SurvOsClient.AUTOMATION.setGoal(
-                            primaryField.getText().trim(),
-                            parseInt(secondaryField.getText(), 0));
-                    SurvOsClient.notice("Automation goal updated.");
-                });
-
-        addButton(x + 194, y + 27, 186, "CLEAR GOAL",
-                b -> SurvOsClient.AUTOMATION.setGoal("", 0));
-
-        addButton(x, y + 54, 186, "MOB GRIND",
-                b -> SurvOsClient.AUTOMATION.start(AutomationManager.Mode.MOB_GRIND, client));
-        addButton(x + 194, y + 54, 186, "MINING",
-                b -> SurvOsClient.AUTOMATION.start(AutomationManager.Mode.MINING, client));
-
-        addButton(x, y + 81, 186, "TREE FARM",
-                b -> SurvOsClient.AUTOMATION.start(AutomationManager.Mode.TREE_FARM, client));
-        addButton(x + 194, y + 81, 186, "CROP FARM",
-                b -> SurvOsClient.AUTOMATION.start(AutomationManager.Mode.CROP_FARM, client));
-
-        addButton(x, y + 108, 186, "FISHING",
-                b -> SurvOsClient.AUTOMATION.start(AutomationManager.Mode.FISHING, client));
-        addButton(x + 194, y + 108, 186, "ANIMAL FARM",
-                b -> SurvOsClient.AUTOMATION.start(AutomationManager.Mode.ANIMAL_FARM, client));
-
-        addButton(x, y + 135, 186, "PAUSE",
-                b -> SurvOsClient.AUTOMATION.pause(client));
-        addButton(x + 194, y + 135, 186, "RESUME",
-                b -> SurvOsClient.AUTOMATION.resume());
-
-        addToggle(x, y + 162, "Avoid Creepers",
-                () -> SurvOsClient.CONFIG.avoidCreepers,
-                v -> SurvOsClient.CONFIG.avoidCreepers = v);
-
-        addToggle(x + 194, y + 162, "Collect Loot",
-                () -> SurvOsClient.CONFIG.collectLoot,
-                v -> SurvOsClient.CONFIG.collectLoot = v);
-
-        addButton(x, y + 189, 186, "QUEUE MINING",
-                b -> {
-                    SurvOsClient.AUTOMATION.queue(
-                            AutomationManager.Mode.MINING,
-                            primaryField.getText().trim(),
-                            parseInt(secondaryField.getText(), 0));
-                    SurvOsClient.notice("Mining task queued.");
-                });
-
-        addButton(x + 194, y + 189, 186, "RETURN TASK START",
-                b -> {
-                    if (!SurvOsClient.AUTOMATION.returnToTaskStart(client))
-                        SurvOsClient.notice("No task start recorded.");
-                });
-    }
-
-    private void voice(int y) {
-        int w = Math.min(420, width - 30);
-        int x = width / 2 - w / 2;
-
-        addButton(x, y, w,
-                SurvOsClient.VOICE.isRunning()
-                        ? "MIC // LISTENING — CLICK TO STOP"
-                        : "MIC // OFF — CLICK TO START",
-                b -> {
-                    SurvOsClient.VOICE.toggle(SurvOsClient.CONFIG);
-                    rebuild();
-                });
-
-        addButton(x, y + 27, w,
-                "VOICE STYLE // " + SurvOsClient.CONFIG.voiceStyle,
-                b -> {
+        addButton(x + 12, y + 108, w - 24,
+                "VOICE  " + SurvOsClient.TTS.status() + "  •  " + SurvOsClient.CONFIG.voiceStyle,
+                () -> {
                     SurvOsClient.CONFIG.voiceStyle = SurvOsClient.TTS.cycleStyle();
                     SurvOsClient.TTS.setStyle(SurvOsClient.CONFIG.voiceStyle);
                     SurvOsClient.CONFIG.save();
-                    SurvOsClient.TTS.speak("Voice profile updated.", SurvOsClient.CONFIG.voiceStyle);
                     rebuild();
-                });
+                }, false);
 
-        addToggle(x, y + 54, "Wake word required",
-                () -> SurvOsClient.CONFIG.requireWakeWord,
-                v -> SurvOsClient.CONFIG.requireWakeWord = v);
-
-        addToggle(x + 194, y + 54, "Speak AI replies",
+        addToggle(x + 12, y + 140, (w - 30) / 2, "Speak replies",
                 () -> SurvOsClient.CONFIG.aiSpeakReplies,
                 v -> {
                     SurvOsClient.CONFIG.aiSpeakReplies = v;
                     SurvOsClient.TTS.setEnabled(v && SurvOsClient.CONFIG.ttsEnabled);
                 });
 
-        List<String> mics = SurvOsClient.VOICE.microphones();
-        addButton(x, y + 81, w,
-                "MIC DEVICE // " + SurvOsClient.CONFIG.microphone,
-                b -> {
-                    int i = mics.indexOf(SurvOsClient.CONFIG.microphone);
-                    if (i < 0) i = 0;
-                    SurvOsClient.CONFIG.microphone = mics.get((i + 1) % mics.size());
-                    SurvOsClient.CONFIG.save();
-                    if (SurvOsClient.VOICE.isRunning()) {
-                        SurvOsClient.VOICE.stop();
-                        SurvOsClient.VOICE.start(SurvOsClient.CONFIG);
-                    }
-                    rebuild();
-                });
+        addToggle(x + 18 + (w - 30) / 2, y + 140, (w - 30) / 2, "Wake word",
+                () -> SurvOsClient.CONFIG.requireWakeWord,
+                v -> SurvOsClient.CONFIG.requireWakeWord = v);
 
-        addButton(x, y + 108, w,
-                "LAST HEARD // " + trim(SurvOsClient.VOICE.lastHeard(), 48),
-                b -> {});
+        addButton(x + 12, y + 178, w - 24,
+                "RECENT  " + trim(SurvOsClient.recentCommands().toString(), 68),
+                () -> {}, false);
+
+        addButton(x + 12, y + 210, w - 24,
+                "REPLY  " + trim(SurvOsClient.AI.lastReply(), 68),
+                () -> {}, false);
     }
 
-    private void ai(int y) {
-        int w = Math.min(420, width - 30);
-        int x = width / 2 - w / 2;
+    private void automation(int x, int y, int w) {
+        primaryField = field(x + 12, y + 34, w - 132, "Goal item (iron, diamonds, logs...)");
+        secondaryField = field(x + w - 114, y + 34, 102, "Count");
 
-        addButton(x, y, w,
-                "LOCAL AI // " + SurvOsClient.AI.status(),
-                b -> {
-                    if (SurvOsClient.AI.ready()) SurvOsClient.AI.stop();
-                    else SurvOsClient.AI.ensureStarted();
-                    rebuild();
-                });
+        addButton(x + 12, y + 66, (w - 30) / 2, "SET GOAL", () -> {
+            SurvOsClient.AUTOMATION.setGoal(
+                    primaryField.getText().trim(),
+                    parseInt(secondaryField.getText(), 0));
+        }, false);
 
-        primaryField = field(x, y + 28, w, "ask SURV anything about your world...");
-        addButton(x, y + 55, w, "ASK SURV",
-                b -> {
-                    String q = primaryField.getText().trim();
-                    if (!q.isBlank()) SurvOsClient.askAi(q, false);
-                });
+        addButton(x + 18 + (w - 30) / 2, y + 66, (w - 30) / 2, "RETURN START",
+                () -> SurvOsClient.AUTOMATION.returnToTaskStart(client), false);
 
-        addButton(x, y + 82, w,
-                "LAST REPLY // " + trim(SurvOsClient.AI.lastReply(), 48),
-                b -> {});
+        int third = (w - 36) / 3;
+        addButton(x + 12, y + 100, third, "MINING",
+                () -> SurvOsClient.AUTOMATION.start(AutomationManager.Mode.MINING, client), false);
+        addButton(x + 18 + third, y + 100, third, "MOBS",
+                () -> SurvOsClient.AUTOMATION.start(AutomationManager.Mode.MOB_GRIND, client), false);
+        addButton(x + 24 + third * 2, y + 100, third, "TREES",
+                () -> SurvOsClient.AUTOMATION.start(AutomationManager.Mode.TREE_FARM, client), false);
 
-        addToggle(x, y + 109, "AI enabled",
-                () -> SurvOsClient.CONFIG.aiEnabled,
-                v -> SurvOsClient.CONFIG.aiEnabled = v);
+        addButton(x + 12, y + 134, third, "CROPS",
+                () -> SurvOsClient.AUTOMATION.start(AutomationManager.Mode.CROP_FARM, client), false);
+        addButton(x + 18 + third, y + 134, third, "FISH",
+                () -> SurvOsClient.AUTOMATION.start(AutomationManager.Mode.FISHING, client), false);
+        addButton(x + 24 + third * 2, y + 134, third, "ANIMALS",
+                () -> SurvOsClient.AUTOMATION.start(AutomationManager.Mode.ANIMAL_FARM, client), false);
 
-        addToggle(x + 194, y + 109, "Auto start AI",
-                () -> SurvOsClient.CONFIG.aiAutoStart,
-                v -> SurvOsClient.CONFIG.aiAutoStart = v);
+        addButton(x + 12, y + 172, (w - 36) / 3, "PAUSE",
+                () -> SurvOsClient.AUTOMATION.pause(client), false);
+        addButton(x + 18 + (w - 36) / 3, y + 172, (w - 36) / 3, "RESUME",
+                () -> SurvOsClient.AUTOMATION.resume(), false);
+        addButton(x + 24 + ((w - 36) / 3) * 2, y + 172, (w - 36) / 3, "STOP",
+                () -> {
+                    SurvOsClient.AUTOMATION.stop(client, "User stop");
+                    SurvOsClient.CONTROL.stop(client);
+                }, true);
 
-        addButton(x, y + 136, w,
-                "RECENT // " + trim(SurvOsClient.recentCommands().toString(), 52),
-                b -> {});
+        addToggle(x + 12, y + 208, (w - 30) / 2, "Avoid creepers",
+                () -> SurvOsClient.CONFIG.avoidCreepers,
+                v -> SurvOsClient.CONFIG.avoidCreepers = v);
+
+        addToggle(x + 18 + (w - 30) / 2, y + 208, (w - 30) / 2, "Collect loot",
+                () -> SurvOsClient.CONFIG.collectLoot,
+                v -> SurvOsClient.CONFIG.collectLoot = v);
     }
 
-    private void inventory(int y) {
-        int w = Math.min(420, width - 30);
-        int x = width / 2 - w / 2;
+    private void tools(int x, int y, int w) {
+        int half = (w - 30) / 2;
 
-        addButton(x, y, w, "APPLY MINING LOADOUT",
-                b -> InventoryManager.applyLoadout(client, "MINING"));
-        addButton(x, y + 27, w, "APPLY COMBAT LOADOUT",
-                b -> InventoryManager.applyLoadout(client, "COMBAT"));
-        addButton(x, y + 54, w, "APPLY BUILDING LOADOUT",
-                b -> InventoryManager.applyLoadout(client, "BUILDING"));
+        primaryField = field(x + 12, y + 34, half - 72, "Craft item");
+        secondaryField = field(x + half - 54, y + 34, 60, "Qty");
+        addButton(x + half + 12, y + 34, (half - 6) / 2, "CRAFT X",
+                () -> {
+                    String item = primaryField.getText().trim();
+                    if (!item.isBlank()) SurvOsClient.LEGACY.queueCraftDirect(
+                            client, item, parseInt(secondaryField.getText(), 1), false);
+                }, false);
+        addButton(x + half + 18 + (half - 6) / 2, y + 34, (half - 6) / 2, "MAX",
+                () -> {
+                    String item = primaryField.getText().trim();
+                    if (!item.isBlank()) SurvOsClient.LEGACY.queueCraftDirect(client, item, 1, true);
+                }, false);
 
-        addButton(x, y + 81, w,
-                "DURABILITY PROTECTION // " + SurvOsClient.CONFIG.durabilityStopPercent + "%",
-                b -> {
-                    SurvOsClient.CONFIG.durabilityStopPercent += 5;
-                    if (SurvOsClient.CONFIG.durabilityStopPercent > 25)
-                        SurvOsClient.CONFIG.durabilityStopPercent = 5;
-                    SurvOsClient.CONFIG.save();
-                    rebuild();
-                });
-    }
+        addButton(x + 12, y + 72, half, "VILLAGER SETTINGS",
+                () -> SurvOsClient.LEGACY.openVillagerSettings(client, this), false);
+        addButton(x + half + 18, y + 72, half, "START / STOP CYCLER",
+                () -> SurvOsClient.LEGACY.toggleVillager(client), false);
 
-    private void world(int y) {
-        int x = width / 2 - 190;
+        addButton(x + 12, y + 108, half, "ENCHANT LAB",
+                () -> SurvOsClient.LEGACY.openEnchantBuilder(client), false);
+        addButton(x + half + 18, y + 108, half, "APPLY COMBAT LOADOUT",
+                () -> InventoryManager.applyLoadout(client, "COMBAT"), false);
 
-        primaryField = field(x, y, 245, "waypoint / route name");
-        addButton(x + 251, y, 129, "SAVE WP",
-                b -> {
+        primaryField = field(x + 12, y + 148, w - 148, "Waypoint name");
+        addButton(x + w - 130, y + 148, 56, "SAVE",
+                () -> {
                     String n = primaryField.getText().trim();
                     if (!n.isBlank()) SurvOsClient.MEMORY.setWaypoint(client, n);
-                });
-
-        addButton(x, y + 27, 186, "GO WAYPOINT",
-                b -> {
+                }, false);
+        addButton(x + w - 68, y + 148, 56, "GO",
+                () -> {
                     String n = primaryField.getText().trim();
-                    if (!n.isBlank() && !SurvOsClient.AUTOMATION.goToWaypoint(client, n))
-                        SurvOsClient.notice("Waypoint not found.");
-                });
+                    if (!n.isBlank()) SurvOsClient.AUTOMATION.goToWaypoint(client, n);
+                }, false);
 
-        addButton(x + 194, y + 27, 186, "PLAY ROUTE",
-                b -> {
-                    String n = primaryField.getText().trim();
-                    if (!n.isBlank() && !SurvOsClient.AUTOMATION.playRoute(client, n))
-                        SurvOsClient.notice("Route not found.");
-                });
-
-        addButton(x, y + 54, 186, "START ROUTE RECORDING",
-                b -> {
-                    String n = primaryField.getText().trim();
-                    if (!n.isBlank()) {
-                        SurvOsClient.MEMORY.startRoute(n);
-                        SurvOsClient.notice("Recording route " + n);
-                    }
-                });
-
-        addButton(x + 194, y + 54, 186, "STOP + SAVE ROUTE",
-                b -> SurvOsClient.notice("Saved " + SurvOsClient.MEMORY.stopRoute() + " route points."));
-
-        secondaryField = field(x, y + 83, 245, "search remembered storage");
-        addButton(x + 251, y + 83, 129, "FIND",
-                b -> {
-                    var found = SurvOsClient.MEMORY.containersWith(secondaryField.getText().trim());
-                    SurvOsClient.notice(found.isEmpty() ? "Not found in remembered storage." : String.join(" • ", found));
-                });
-
-        addButton(x, y + 110, 380,
-                "KNOWN // " + SurvOsClient.MEMORY.waypointNames() + " // ROUTES " + SurvOsClient.MEMORY.routeNames(),
-                b -> {});
+        addButton(x + 12, y + 186, w - 24,
+                "KNOWN  " + trim(SurvOsClient.MEMORY.waypointNames().toString(), 68),
+                () -> {}, false);
     }
 
-    private void profiles(int y) {
-        int x = width / 2 - 190;
-        String[] p = {"SURVIVAL", "MINING", "COMBAT", "GRINDING", "NETHER", "BASE", "BUILDING"};
+    private void settings(int x, int y, int w) {
+        int half = (w - 30) / 2;
 
-        for (int i = 0; i < p.length; i++) {
-            int col = i % 2;
-            int row = i / 2;
-            String profile = p[i];
+        addButton(x + 12, y + 34, w - 24,
+                "MIC  " + SurvOsClient.CONFIG.microphone,
+                this::cycleMic, false);
 
-            addButton(x + col * 194, y + row * 27, 186, profile,
-                    b -> {
-                        SurvOsClient.CONFIG.applyProfile(profile);
-                        SurvOsClient.notice("Profile: " + profile);
-                        rebuild();
-                    });
-        }
-    }
+        addToggle(x + 12, y + 70, half, "Always listening",
+                () -> SurvOsClient.CONFIG.voiceEnabled && SurvOsClient.VOICE.isRunning(),
+                v -> {
+                    SurvOsClient.CONFIG.voiceEnabled = v;
+                    SurvOsClient.CONFIG.voiceAutoStart = v;
+                    if (v) SurvOsClient.VOICE.start(SurvOsClient.CONFIG);
+                    else SurvOsClient.VOICE.stop();
+                });
 
-    private void keybinds(int y) {
-        int w = Math.min(420, width - 30);
-        int x = width / 2 - w / 2;
+        addToggle(x + half + 18, y + 70, half, "HUD",
+                () -> SurvOsClient.CONFIG.hudEnabled,
+                v -> SurvOsClient.CONFIG.hudEnabled = v);
 
-        addButton(x, y, w, "F9 // OPEN SURV COMMAND CENTER", b -> {});
-        addButton(x, y + 27, w, "F8 // TOGGLE VOICE LISTENER", b -> {});
-        addButton(x, y + 54, w, "F7 // EMERGENCY STOP AUTOMATION", b -> {});
-        addButton(x, y + 81, w, "All can be rebound in Minecraft Controls.", b -> {});
-    }
+        addButton(x + 12, y + 106, half,
+                "PROFILE  " + SurvOsClient.CONFIG.profile,
+                () -> {
+                    String p = switch (SurvOsClient.CONFIG.profile) {
+                        case "SURVIVAL" -> "MINING";
+                        case "MINING" -> "COMBAT";
+                        case "COMBAT" -> "NETHER";
+                        case "NETHER" -> "BASE";
+                        case "BASE" -> "BUILDING";
+                        default -> "SURVIVAL";
+                    };
+                    SurvOsClient.CONFIG.applyProfile(p);
+                    rebuild();
+                }, false);
 
-    private void advanced(int y) {
-        int x = width / 2 - 190;
+        addButton(x + half + 18, y + 106, half,
+                "HUD THEME  " + SurvOsClient.CONFIG.hudTheme,
+                () -> {
+                    SurvOsClient.CONFIG.hudTheme = switch (SurvOsClient.CONFIG.hudTheme) {
+                        case "CYAN" -> "AMBER";
+                        case "AMBER" -> "GREEN";
+                        case "GREEN" -> "MONO";
+                        default -> "CYAN";
+                    };
+                    SurvOsClient.CONFIG.save();
+                    rebuild();
+                }, false);
 
-        addToggle(x, y, "Smart alerts",
+        addToggle(x + 12, y + 142, half, "Smart alerts",
                 () -> SurvOsClient.CONFIG.smartAlerts,
                 v -> SurvOsClient.CONFIG.smartAlerts = v);
 
-        addToggle(x + 194, y, "Low-health safety",
-                () -> SurvOsClient.CONFIG.lowHealthSafety,
-                v -> SurvOsClient.CONFIG.lowHealthSafety = v);
+        addToggle(x + half + 18, y + 142, half, "Auto hotbar",
+                () -> SurvOsClient.CONFIG.autoHotbar,
+                v -> SurvOsClient.CONFIG.autoHotbar = v);
 
-        addButton(x, y + 28, 186, "RULE: HEALTH < 3 HEARTS",
-                b -> SurvOsClient.RULES.add(
-                        new RuleEngine.Rule(RuleEngine.Kind.HEALTH_BELOW, 3, null)));
+        addButton(x + 12, y + 178, half, "BACKUP SETTINGS",
+                () -> SurvOsClient.notice(
+                        SurvOsClient.CONFIG.backup() ? "Settings backed up." : "Backup failed."), false);
 
-        addButton(x + 194, y + 28, 186, "RULE: FREE SLOTS <= 2",
-                b -> SurvOsClient.RULES.add(
-                        new RuleEngine.Rule(RuleEngine.Kind.INVENTORY_FREE_AT_MOST, 2, null)));
+        addButton(x + half + 18, y + 178, half, "SELF TEST",
+                () -> SurvOsClient.notice(SurvOsClient.statusLine(client)), false);
 
-        addButton(x, y + 55, 186, "RULE: DURA < 10%",
-                b -> SurvOsClient.RULES.add(
-                        new RuleEngine.Rule(RuleEngine.Kind.DURABILITY_BELOW, 10, null)));
+        addButton(x + 12, y + 214, w - 24,
+                "F9 MENU  •  F8 VOICE ON/OFF  •  F7 EMERGENCY STOP",
+                () -> {}, false);
+    }
 
-        addButton(x + 194, y + 55, 186, "CLEAR RULES",
-                b -> SurvOsClient.RULES.clear());
+    private void toggleVoice() {
+        if (SurvOsClient.VOICE.isRunning()) {
+            SurvOsClient.VOICE.stop();
+            SurvOsClient.CONFIG.voiceEnabled = false;
+            SurvOsClient.CONFIG.voiceAutoStart = false;
+        } else {
+            SurvOsClient.CONFIG.voiceEnabled = true;
+            SurvOsClient.CONFIG.voiceAutoStart = true;
+            SurvOsClient.VOICE.start(SurvOsClient.CONFIG);
+        }
+        SurvOsClient.CONFIG.save();
+        rebuild();
+    }
 
-        addButton(x, y + 82, 380,
-                "SELF TEST // AI " + SurvOsClient.AI.status()
-                        + " • Voice " + SurvOsClient.VOICE.status()
-                        + " • Craft " + online(SurvOsClient.LEGACY.quickAvailable())
-                        + " • Villy " + online(SurvOsClient.LEGACY.tradeAvailable())
-                        + " • Enchant " + online(SurvOsClient.LEGACY.enchantAvailable()),
-                b -> SurvOsClient.notice(SurvOsClient.statusLine(client)));
+    private void cycleMic() {
+        List<String> mics = SurvOsClient.VOICE.microphones();
+        if (mics.isEmpty()) return;
+        int i = mics.indexOf(SurvOsClient.CONFIG.microphone);
+        if (i < 0) i = 0;
+        SurvOsClient.CONFIG.microphone = mics.get((i + 1) % mics.size());
+        SurvOsClient.CONFIG.save();
 
-        addButton(x, y + 109, 186,
-                "BACKUP SETTINGS",
-                b -> SurvOsClient.notice(
-                        SurvOsClient.CONFIG.backup() ? "Settings backup saved." : "Settings backup failed."));
-
-        addButton(x + 194, y + 109, 186,
-                "RESTORE BACKUP",
-                b -> {
-                    SurvConfig restored = SurvConfig.restoreBackup();
-                    SurvOsClient.notice(restored != null
-                            ? "Backup restored. Restart Minecraft to fully reload it."
-                            : "No settings backup found.");
-                });
-
-        addButton(x, y + 136, 380,
-                "RESET SESSION STATS",
-                b -> {
-                    SurvOsClient.STATS.reset();
-                    SurvOsClient.notice("Session statistics reset.");
-                });
+        if (SurvOsClient.VOICE.isRunning()) {
+            SurvOsClient.VOICE.stop();
+            SurvOsClient.VOICE.start(SurvOsClient.CONFIG);
+        }
+        rebuild();
     }
 
     private TextFieldWidget field(int x, int y, int w, String placeholder) {
-        TextFieldWidget f = new TextFieldWidget(textRenderer, x, y, w, 20, Text.literal(placeholder));
+        TextFieldWidget f = new TextFieldWidget(textRenderer, x, y, w, 22, Text.literal(placeholder));
         f.setPlaceholder(Text.literal(placeholder));
+        f.setMaxLength(120);
         addDrawableChild(f);
         return f;
     }
 
-    private void addButton(int x, int y, int w, String text, ButtonWidget.PressAction action) {
-        addDrawableChild(ButtonWidget.builder(Text.literal(text), action)
-                .dimensions(x, y, w, 21)
-                .build());
+    private void addButton(int x, int y, int w, String text, Runnable action, boolean strong) {
+        addDrawableChild(new SurvButton(x, y, w, 24, Text.literal(text), action, strong));
     }
 
     private interface BoolGet { boolean get(); }
-    private interface BoolSet { void set(boolean v); }
+    private interface BoolSet { void set(boolean value); }
 
-    private void addToggle(int x, int y, String name, BoolGet get, BoolSet set) {
-        addButton(x, y, 186,
-                name + " // " + (get.get() ? "ON" : "OFF"),
-                b -> {
-                    set.set(!get.get());
-                    SurvOsClient.CONFIG.save();
-                    rebuild();
-                });
+    private void addToggle(int x, int y, int w, String name, BoolGet get, BoolSet set) {
+        addButton(x, y, w, name + "  " + (get.get() ? "ON" : "OFF"), () -> {
+            set.set(!get.get());
+            SurvOsClient.CONFIG.save();
+            rebuild();
+        }, get.get());
     }
 
     @Override
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
-        ctx.fill(0, 0, width, height, 0xF0080D12);
-        ctx.fill(0, 0, width, 4, 0xFF58E6E6);
-        ctx.fill(0, 4, width, 34, 0xEE101820);
+        int panelW = Math.min(548, width - 12);
+        int left = (width - panelW) / 2;
+        int right = left + panelW;
 
-        ctx.drawCenteredTextWithShadow(
+        ctx.fill(0, 0, width, height, 0xF305080C);
+        ctx.fill(left, 10, right, Math.min(height - 10, 330), 0xD90A1118);
+        ctx.fill(left, 10, right, 12, 0xFF4CE8E2);
+        ctx.fill(left, 34, right, 35, 0x554CE8E2);
+
+        ctx.drawTextWithShadow(
                 textRenderer,
                 Text.literal("SURV // OS").formatted(Formatting.AQUA, Formatting.BOLD),
-                width / 2, 9, 0xFFFFFF);
+                left + 14, 18, 0xFFEAFBFF);
 
-        ctx.drawCenteredTextWithShadow(
+        String status = "VOICE " + (SurvOsClient.VOICE.isRunning() ? "ON" : "OFF")
+                + "  •  AI " + SurvOsClient.AI.status()
+                + "  •  " + SurvOsClient.CONFIG.profile;
+        int sw = textRenderer.getWidth(status);
+        ctx.drawTextWithShadow(textRenderer, status, right - sw - 14, 19, 0xFF8496A3);
+
+        int contentY = 76;
+        ctx.fill(left + 8, contentY, right - 8, Math.min(height - 18, 322), 0x69070D12);
+
+        ctx.drawTextWithShadow(
                 textRenderer,
-                Text.literal("LOCAL SURVIVAL INTELLIGENCE  •  " + SurvOsClient.CONFIG.profile + "  •  F9")
-                        .formatted(Formatting.DARK_GRAY),
-                width / 2, 22, 0xFFFFFF);
+                switch (tab) {
+                    case DASHBOARD -> "COMMAND CENTER";
+                    case AI -> "SURV AI";
+                    case AUTOMATION -> "AUTOMATION";
+                    case TOOLS -> "SURVIVAL TOOLS";
+                    case SETTINGS -> "SETTINGS";
+                },
+                left + 14, contentY + 8, 0xFF9FB4C0);
 
         super.render(ctx, mouseX, mouseY, delta);
     }
@@ -581,32 +416,57 @@ public final class SurvScreen extends Screen {
         return false;
     }
 
-    private static String shortName(Tab t) {
-        return switch (t) {
-            case DASHBOARD -> "HOME";
-            case AUTOMATION -> "AUTO";
-            case INVENTORY -> "INV";
-            case VILLAGER -> "VILLY";
-            case KEYBINDS -> "KEYS";
-            case ADVANCED -> "ADV";
-            default -> t.name();
-        };
-    }
-
-    private static String online(boolean ok) {
-        return ok ? "ONLINE" : "OFFLINE";
+    private static int parseInt(String value, int fallback) {
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (Exception e) {
+            return fallback;
+        }
     }
 
     private static String trim(String s, int n) {
         if (s == null || s.isBlank()) return "—";
-        return s.length() <= n ? s : s.substring(0, n - 1) + "…";
+        String oneLine = s.replaceAll("\\s+", " ").trim();
+        return oneLine.length() <= n ? oneLine : oneLine.substring(0, n - 1) + "…";
     }
 
-    private static int parseInt(String s, int fallback) {
-        try {
-            return Integer.parseInt(s.trim());
-        } catch (Exception e) {
-            return fallback;
+    private static final class SurvButton extends PressableWidget {
+        private final Runnable action;
+        private final boolean strong;
+
+        private SurvButton(int x, int y, int width, int height, Text text, Runnable action, boolean strong) {
+            super(x, y, width, height, text);
+            this.action = action == null ? () -> {} : action;
+            this.strong = strong;
+        }
+
+        @Override
+        public void onPress(AbstractInput input) {
+            action.run();
+        }
+
+        @Override
+        protected void drawIcon(DrawContext ctx, int mouseX, int mouseY, float deltaTicks) {
+            int x = getX();
+            int y = getY();
+            int r = x + getWidth();
+            int b = y + getHeight();
+
+            int bg = strong
+                    ? (isHovered() ? 0xE3245962 : 0xD9183A42)
+                    : (isHovered() ? 0xE31B2C36 : 0xC9122029);
+            int edge = strong ? 0xFF55EEE7 : (isHovered() ? 0xFF506D7C : 0xFF263B46);
+
+            ctx.fill(x, y, r, b, bg);
+            ctx.fill(x, y, r, y + 1, edge);
+            ctx.fill(x, b - 1, r, b, edge);
+            ctx.fill(x, y, x + 1, b, edge);
+            ctx.fill(r - 1, y, r, b, edge);
+        }
+
+        @Override
+        public void appendClickableNarrations(NarrationMessageBuilder builder) {
+            appendDefaultNarrations(builder);
         }
     }
 }
