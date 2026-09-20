@@ -15,6 +15,9 @@ public final class PlayerControlService {
     private int motionTicks;
     private int useTicks;
     private boolean jumpOnce;
+    private boolean ownsMovement;
+    private boolean ownsJump;
+    private boolean ownsUse;
 
     public String status() {
         if (motion != Motion.NONE) return "MOVING " + motion;
@@ -30,6 +33,7 @@ public final class PlayerControlService {
             default -> Motion.FORWARD;
         };
         motionTicks = Math.max(1, Math.min(200, (int)Math.round(seconds * 20.0)));
+        ownsMovement = true;
     }
 
     public void stop(MinecraftClient c) {
@@ -37,13 +41,31 @@ public final class PlayerControlService {
         motionTicks = 0;
         useTicks = 0;
         jumpOnce = false;
-        LocalNavigator.clearKeys(c);
+
+        if (c != null && c.options != null) {
+            if (ownsMovement) {
+                c.options.forwardKey.setPressed(false);
+                c.options.backKey.setPressed(false);
+                c.options.leftKey.setPressed(false);
+                c.options.rightKey.setPressed(false);
+            }
+            if (ownsJump) c.options.jumpKey.setPressed(false);
+            if (ownsUse) c.options.useKey.setPressed(false);
+        }
+
+        ownsMovement = false;
+        ownsJump = false;
+        ownsUse = false;
     }
 
-    public void jump() { jumpOnce = true; }
+    public void jump() {
+        jumpOnce = true;
+        ownsJump = true;
+    }
 
     public void useItem(int ticks) {
         useTicks = Math.max(1, Math.min(80, ticks));
+        ownsUse = true;
     }
 
     public void turn(MinecraftClient c, float degrees) {
@@ -101,35 +123,50 @@ public final class PlayerControlService {
     public void tick(MinecraftClient c) {
         if (c == null || c.player == null || c.options == null) return;
 
-        c.options.forwardKey.setPressed(false);
-        c.options.backKey.setPressed(false);
-        c.options.leftKey.setPressed(false);
-        c.options.rightKey.setPressed(false);
+        // Do not touch the player's normal keys unless SURV currently owns that input.
+        if (ownsMovement) {
+            c.options.forwardKey.setPressed(false);
+            c.options.backKey.setPressed(false);
+            c.options.leftKey.setPressed(false);
+            c.options.rightKey.setPressed(false);
 
-        if (motionTicks > 0) {
-            switch (motion) {
-                case FORWARD -> c.options.forwardKey.setPressed(true);
-                case BACK -> c.options.backKey.setPressed(true);
-                case LEFT -> c.options.leftKey.setPressed(true);
-                case RIGHT -> c.options.rightKey.setPressed(true);
-                default -> {}
+            if (motionTicks > 0) {
+                switch (motion) {
+                    case FORWARD -> c.options.forwardKey.setPressed(true);
+                    case BACK -> c.options.backKey.setPressed(true);
+                    case LEFT -> c.options.leftKey.setPressed(true);
+                    case RIGHT -> c.options.rightKey.setPressed(true);
+                    default -> {}
+                }
+                motionTicks--;
             }
-            motionTicks--;
-            if (motionTicks <= 0) motion = Motion.NONE;
+
+            if (motionTicks <= 0) {
+                c.options.forwardKey.setPressed(false);
+                c.options.backKey.setPressed(false);
+                c.options.leftKey.setPressed(false);
+                c.options.rightKey.setPressed(false);
+                motion = Motion.NONE;
+                ownsMovement = false;
+            }
         }
 
         if (jumpOnce) {
             c.options.jumpKey.setPressed(true);
             jumpOnce = false;
-        } else {
+            ownsJump = true;
+        } else if (ownsJump) {
             c.options.jumpKey.setPressed(false);
+            ownsJump = false;
         }
 
         if (useTicks > 0) {
             c.options.useKey.setPressed(true);
+            ownsUse = true;
             useTicks--;
-        } else {
+        } else if (ownsUse) {
             c.options.useKey.setPressed(false);
+            ownsUse = false;
         }
     }
 }
