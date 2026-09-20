@@ -580,13 +580,14 @@ Session:
         int left = CONFIG.hudRight ? ctx.getScaledWindowWidth() - boxW - 7 : 7;
         int right = left + boxW;
 
+        int accent = themeAccent();
         ctx.fill(left, y, right, y + boxH, 0xB5091118);
-        ctx.fill(left, y, right, y + 2, 0xEE55E8E2);
+        ctx.fill(left, y, right, y + 2, accent);
         ctx.drawText(
                 client.textRenderer,
                 "SURV // " + CONFIG.profile,
                 left + pad, y + 5,
-                0xFF55E8E2,
+                accent,
                 true
         );
 
@@ -607,6 +608,16 @@ Session:
                     true
             );
         }
+    }
+
+    private static int themeAccent() {
+        return switch (CONFIG.hudTheme == null ? "CYAN" : CONFIG.hudTheme) {
+            case "AMBER" -> 0xFFFFB84D;
+            case "GREEN" -> 0xFF66FF9A;
+            case "RED" -> 0xFFFF6262;
+            case "MONO" -> 0xFFE4E8EC;
+            default -> 0xFF55E8E2;
+        };
     }
 
     private record Line(String text, int color) {}
