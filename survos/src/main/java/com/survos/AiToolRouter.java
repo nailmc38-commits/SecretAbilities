@@ -64,6 +64,14 @@ public final class AiToolRouter {
                 case "open_villager" -> { c.setScreen(new SurvScreen(SurvScreen.Tab.VILLAGER)); yield "opened villagers"; }
                 case "toggle_villager" -> { SurvOsClient.LEGACY.toggleVillager(c); yield "villager cycler toggled"; }
                 case "open_enchant" -> { SurvOsClient.LEGACY.openEnchantBuilder(c); yield "opened enchant lab"; }
+                case "craft_item" -> {
+                    String item=str(a,"item","");
+                    int count=num(a,"count",1);
+                    boolean max=bool(a,"max",false);
+                    yield SurvOsClient.LEGACY.queueCraftDirect(c,item,count,max)
+                            ? (max ? "craft max queued" : "craft x"+count+" queued")
+                            : "craft queue failed";
+                }
                 case "open_craft" -> { c.setScreen(new SurvScreen(SurvScreen.Tab.CRAFT)); yield "opened craft"; }
                 case "set_hud" -> {
                     String module=str(a,"module","hud").toLowerCase(Locale.ROOT); boolean on=bool(a,"enabled",true);
