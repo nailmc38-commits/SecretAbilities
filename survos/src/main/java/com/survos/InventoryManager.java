@@ -53,6 +53,12 @@ public final class InventoryManager {
         return best>=0 && selectInventoryIndex(c,best,0);
     }
 
+    public static boolean selectItemByKeyword(MinecraftClient c, String keyword, int preferredHotbar) {
+        if (keyword == null || keyword.isBlank()) return false;
+        String q = WorldScanner.normalize(keyword);
+        return selectMatching(c, s -> !s.isEmpty() && id(s).contains(q), preferredHotbar);
+    }
+
     public static boolean selectFishingRod(MinecraftClient c){
         return selectMatching(c,s->s.isOf(Items.FISHING_ROD),4);
     }
