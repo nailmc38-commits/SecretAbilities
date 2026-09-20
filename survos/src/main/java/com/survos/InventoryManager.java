@@ -100,6 +100,42 @@ public final class InventoryManager {
         return true;
     }
 
+    public static boolean moveToHotbar(MinecraftClient c,int invIndex,int hotbarSlot) {
+        if(c.player==null||c.interactionManager==null) return false;
+        PlayerEntity p=c.player;
+        int old=p.getInventory().getSelectedSlot();
+        if(invIndex>=0&&invIndex<9){
+            if(invIndex==hotbarSlot) return true;
+            OptionalInt slot=p.playerScreenHandler.getSlotIndex(p.getInventory(),invIndex);
+            if(slot.isEmpty()) return false;
+            c.interactionManager.clickSlot(p.playerScreenHandler.syncId,slot.getAsInt(),hotbarSlot,SlotActionType.SWAP,p);
+            p.getInventory().setSelectedSlot(old);
+            return true;
+        }
+        OptionalInt slot=p.playerScreenHandler.getSlotIndex(p.getInventory(),invIndex);
+        if(slot.isEmpty()) return false;
+        c.interactionManager.clickSlot(p.playerScreenHandler.syncId,slot.getAsInt(),hotbarSlot,SlotActionType.SWAP,p);
+        p.getInventory().setSelectedSlot(old);
+        return true;
+    }
+
+    public static void tickAutoHotbar(MinecraftClient c) {
+        if(c.player==null||c.currentScreen!=null) return;
+        refillKeyword(c,7,"food");
+        refillKeyword(c,8,"totem");
+        refillKeyword(c,5,"torch");
+    }
+
+    private static void refillKeyword(MinecraftClient c,int slot,String keyword) {
+        ItemStack current=c.player.getInventory().getStack(slot);
+        boolean good=!current.isEmpty() && (keyword.equals("food")
+                ? current.getItem().getUseAction(current)==UseAction.EAT
+                : id(current).contains(keyword));
+        if(good) return;
+        int idx=find(c.player,keyword);
+        if(idx>=0 && idx!=slot) moveToHotbar(c,idx,slot);
+    }
+
     public static void applyLoadout(MinecraftClient c,String profile) {
         if(c.player==null) return;
         String[][] layouts={
@@ -113,7 +149,7 @@ public final class InventoryManager {
         for(int slot=0;slot<9;slot++){
             String need=chosen[slot+1];
             int idx=find(c.player,need);
-            if(idx>=0 && idx!=slot) selectInventoryIndex(c,idx,slot);
+            if(idx>=0 && idx!=slot) moveToHotbar(c,idx,slot);
         }
     }
 
