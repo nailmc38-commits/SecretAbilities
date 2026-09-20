@@ -125,6 +125,31 @@ public final class SurvScreen extends Screen {
         addToggle(x + 194, y + 100, "Inventory", () -> SurvOsClient.CONFIG.showInventory, v -> SurvOsClient.CONFIG.showInventory = v);
         addToggle(x, y + 125, "Hostiles", () -> SurvOsClient.CONFIG.showHostiles, v -> SurvOsClient.CONFIG.showHostiles = v);
         addToggle(x + 194, y + 125, "Voice/AI", () -> SurvOsClient.CONFIG.showVoice, v -> SurvOsClient.CONFIG.showVoice = v);
+
+        addToggle(x, y + 150, "HUD right side", () -> SurvOsClient.CONFIG.hudRight, v -> SurvOsClient.CONFIG.hudRight = v);
+
+        addButton(x + 194, y + 150, 186,
+                "THEME // " + SurvOsClient.CONFIG.hudTheme,
+                b -> {
+                    SurvOsClient.CONFIG.hudTheme = switch (SurvOsClient.CONFIG.hudTheme) {
+                        case "CYAN" -> "AMBER";
+                        case "AMBER" -> "GREEN";
+                        case "GREEN" -> "RED";
+                        case "RED" -> "MONO";
+                        default -> "CYAN";
+                    };
+                    SurvOsClient.CONFIG.save();
+                    rebuild();
+                });
+
+        addButton(x, y + 175, 380,
+                "HUD LINES // " + SurvOsClient.CONFIG.maxHudLines,
+                b -> {
+                    SurvOsClient.CONFIG.maxHudLines += 2;
+                    if (SurvOsClient.CONFIG.maxHudLines > 14) SurvOsClient.CONFIG.maxHudLines = 6;
+                    SurvOsClient.CONFIG.save();
+                    rebuild();
+                });
     }
 
     private void craft(int y) {
