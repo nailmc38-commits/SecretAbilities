@@ -104,7 +104,7 @@ public final class AiToolRouter {
                     if(ok && bool(a,"start",false)) SurvOsClient.LEGACY.toggleVillager(c);
                     yield ok ? "villager target configured" : "villager config failed";
                 }
-                case "open_villager" -> { c.setScreen(new SurvScreen(SurvScreen.Tab.VILLAGER)); yield "opened villagers"; }
+                case "open_villager" -> { c.setScreen(new SurvScreen(SurvScreen.Tab.TOOLS)); yield "opened villagers"; }
                 case "toggle_villager" -> { SurvOsClient.LEGACY.toggleVillager(c); yield "villager cycler toggled"; }
                 case "enchant_item" -> {
                     String enchants=str(a,"enchants","");
@@ -121,7 +121,7 @@ public final class AiToolRouter {
                             ? (max ? "craft max queued" : "craft x"+count+" queued")
                             : "craft queue failed";
                 }
-                case "open_craft" -> { c.setScreen(new SurvScreen(SurvScreen.Tab.CRAFT)); yield "opened craft"; }
+                case "open_craft" -> { c.setScreen(new SurvScreen(SurvScreen.Tab.TOOLS)); yield "opened craft"; }
                 case "set_hud" -> {
                     String module=str(a,"module","hud").toLowerCase(Locale.ROOT); boolean on=bool(a,"enabled",true);
                     setHud(module,on); SurvOsClient.CONFIG.save(); yield module+" "+on;
