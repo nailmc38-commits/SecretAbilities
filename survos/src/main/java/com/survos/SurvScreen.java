@@ -212,6 +212,21 @@ public final class SurvScreen extends Screen {
         addToggle(x + 194, y + 162, "Collect Loot",
                 () -> SurvOsClient.CONFIG.collectLoot,
                 v -> SurvOsClient.CONFIG.collectLoot = v);
+
+        addButton(x, y + 189, 186, "QUEUE MINING",
+                b -> {
+                    SurvOsClient.AUTOMATION.queue(
+                            AutomationManager.Mode.MINING,
+                            primaryField.getText().trim(),
+                            parseInt(secondaryField.getText(), 0));
+                    SurvOsClient.notice("Mining task queued.");
+                });
+
+        addButton(x + 194, y + 189, 186, "RETURN TASK START",
+                b -> {
+                    if (!SurvOsClient.AUTOMATION.returnToTaskStart(client))
+                        SurvOsClient.notice("No task start recorded.");
+                });
     }
 
     private void voice(int y) {
@@ -298,6 +313,10 @@ public final class SurvScreen extends Screen {
         addToggle(x + 194, y + 109, "Auto start AI",
                 () -> SurvOsClient.CONFIG.aiAutoStart,
                 v -> SurvOsClient.CONFIG.aiAutoStart = v);
+
+        addButton(x, y + 136, w,
+                "RECENT // " + trim(SurvOsClient.recentCommands().toString(), 52),
+                b -> {});
     }
 
     private void inventory(int y) {
@@ -432,7 +451,21 @@ public final class SurvScreen extends Screen {
                         + " • Enchant " + online(SurvOsClient.LEGACY.enchantAvailable()),
                 b -> SurvOsClient.notice(SurvOsClient.statusLine(client)));
 
-        addButton(x, y + 109, 380,
+        addButton(x, y + 109, 186,
+                "BACKUP SETTINGS",
+                b -> SurvOsClient.notice(
+                        SurvOsClient.CONFIG.backup() ? "Settings backup saved." : "Settings backup failed."));
+
+        addButton(x + 194, y + 109, 186,
+                "RESTORE BACKUP",
+                b -> {
+                    SurvConfig restored = SurvConfig.restoreBackup();
+                    SurvOsClient.notice(restored != null
+                            ? "Backup restored. Restart Minecraft to fully reload it."
+                            : "No settings backup found.");
+                });
+
+        addButton(x, y + 136, 380,
                 "RESET SESSION STATS",
                 b -> {
                     SurvOsClient.STATS.reset();
