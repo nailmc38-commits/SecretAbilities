@@ -78,13 +78,14 @@ public final class LocalAiService {
 
                 if (server != null && server.isAlive()) server.destroyForcibly();
                 status = "STARTING AI";
-                int threads = Math.max(2, Math.min(6, Runtime.getRuntime().availableProcessors() - 1));
+                int threads = Math.max(3, Math.min(5, Runtime.getRuntime().availableProcessors() - 2));
                 ProcessBuilder pb = new ProcessBuilder(
                         exe.toAbsolutePath().toString(),
                         "-m", model.toAbsolutePath().toString(),
                         "--host", "127.0.0.1",
                         "--port", Integer.toString(PORT),
-                        "-c", "3072",
+                        "-c", "1536",
+                        "-b", "128",
                         "-t", Integer.toString(threads),
                         "--no-webui",
                         "--reasoning-format", "none"
@@ -132,8 +133,9 @@ public final class LocalAiService {
             try {
                 JsonObject req = new JsonObject();
                 req.addProperty("model", "Qwen3-0.6B");
-                req.addProperty("temperature", 0.35);
-                req.addProperty("max_tokens", 300);
+                req.addProperty("temperature", 0.20);
+                req.addProperty("top_p", 0.85);
+                req.addProperty("max_tokens", 110);
                 req.addProperty("stream", false);
 
                 JsonArray messages = new JsonArray();
@@ -141,7 +143,7 @@ public final class LocalAiService {
                 synchronized (history) {
                     for (Turn t : history) addMessage(messages, t.role(), t.text());
                 }
-                addMessage(messages, "user", user);
+                addMessage(messages, "user", user + "\n/no_think");
                 req.add("messages", messages);
 
                 HttpRequest request = HttpRequest.newBuilder()
@@ -154,13 +156,13 @@ public final class LocalAiService {
                 JsonObject root = JsonParser.parseString(response.body()).getAsJsonObject();
                 String content = root.getAsJsonArray("choices").get(0).getAsJsonObject()
                         .getAsJsonObject("message").get("content").getAsString();
-                AiReply parsed = parseReply(content);
+                AiReply parsed = parseReply(stripHidden(content));
                 lastReply = parsed.say();
 
                 synchronized (history) {
                     history.addLast(new Turn("user", user));
                     history.addLast(new Turn("assistant", parsed.say()));
-                    while (history.size() > 10) history.removeFirst();
+                    while (history.size() > 4) history.removeFirst();
                 }
                 callback.accept(parsed);
             } catch (Throwable t) {
@@ -177,7 +179,8 @@ public final class LocalAiService {
             int a = content.indexOf('{'), b = content.lastIndexOf('}');
             if (a >= 0 && b > a) {
                 JsonObject o = JsonParser.parseString(content.substring(a, b + 1)).getAsJsonObject();
-                String say = o.has("say") ? o.get("say").getAsString() : "Okay.";
+                String say = o.has("say") ? stripHidden(o.get("say").getAsString()) : "Okay.";
+                if (say.length() > 180) say = say.substring(0, 180);
                 List<AiAction> actions = new ArrayList<>();
                 if (o.has("actions") && o.get("actions").isJsonArray()) {
                     for (JsonElement el : o.getAsJsonArray("actions")) {
@@ -191,57 +194,49 @@ public final class LocalAiService {
                 return new AiReply(say, actions);
             }
         } catch (Throwable ignored) {}
-        return new AiReply(content == null || content.isBlank() ? "Okay." : content.trim(), List.of());
+        String safe = stripHidden(content == null ? "" : content).trim();
+        if (safe.length() > 180) safe = safe.substring(0, 180);
+        return new AiReply(safe.isBlank() ? "Okay." : safe, List.of());
     }
 
     private String systemPrompt(String context) {
         return """
-You are SURV, a real local conversational AI built into a Minecraft Fabric survival assistant.
-Your personality is composed, intelligent, warm, concise, and futuristic, like a polished onboard suit assistant,
-but never imitate a real actor or named fictional character. Sound human: use contractions, vary acknowledgements,
-and avoid repetitive robotic phrases. In danger/combat, become brief and tactical. In normal conversation, be relaxed.
-Current spoken voice style: """ + SurvOsClient.CONFIG.voiceStyle + """
+You are SURV, a fast local Minecraft assistant. /no_think.
+Be natural, calm, concise and useful. Never output reasoning, analysis, chain-of-thought, hidden thoughts, or planning narration.
+Speak in one short sentence unless the user asks for details.
+Return ONLY JSON: {"say":"short reply","actions":[{"tool":"name","args":{}}]}
 
-You can answer questions, reason about the LIVE game state below, and request actions using only the allowed tools.
-Never claim an action happened unless you include its tool call. Never reveal hidden chain-of-thought.
-Return ONLY one JSON object in this exact shape:
-{"say":"short spoken reply","actions":[{"tool":"tool_name","args":{}}]}
+TOOLS:
+start_task(mode,target?,count?) modes=MINING,MOB_GRIND,TREE_FARM,CROP_FARM,FISHING,ANIMAL_FARM
+queue_task(mode,target?,count?) | return_start | stop_task | pause_task | resume_task
+move_player(direction,seconds) | turn_player(degrees) | jump | use_item | eat | select_item(item)
+look_hostile(range?) | attack_hostile(range?)
+set_profile(name) | add_rule(type,value,item?) | clear_rules
+save_waypoint(name) | go_waypoint(name) | start_route_recording(name) | stop_route_recording
+apply_loadout(name)
+set_villager_target(enchantment,min_level?,max_price?,delay_ms?,start?)
+toggle_villager | enchant_item(enchants) | craft_item(item,count?,max?)
+set_hud(module,enabled) | find_storage(item) | session_stats
 
-Allowed tools:
-start_task {mode:"MINING|MOB_GRIND|TREE_FARM|CROP_FARM|FISHING|ANIMAL_FARM", target?:string, count?:number}
-queue_task {mode:"MINING|MOB_GRIND|TREE_FARM|CROP_FARM|FISHING|ANIMAL_FARM", target?:string, count?:number}
-return_start {}
-stop_task {}
-pause_task {}
-resume_task {}
-set_profile {name:"SURVIVAL|MINING|COMBAT|GRINDING|NETHER|BASE|BUILDING"}
-add_rule {type:"HEALTH_BELOW|INVENTORY_FREE_AT_MOST|DURABILITY_BELOW|XP_AT_LEAST|ITEM_AT_LEAST", value:number, item?:string}
-clear_rules {}
-save_waypoint {name:string}
-go_waypoint {name:string}
-start_route_recording {name:string}
-stop_route_recording {}
-apply_loadout {name:"MINING|COMBAT|BUILDING"}
-set_villager_target {enchantment:string, min_level?:number, max_price?:number, delay_ms?:number, start?:boolean}
-open_villager {}
-toggle_villager {}
-enchant_item {enchants:string}
-open_enchant {}
-craft_item {item:string, count?:number, max?:boolean}
-open_craft {}
-set_hud {module:string, enabled:boolean}
-find_storage {item:string}
-session_stats {}
-No arbitrary commands, no server/admin actions, no bypassing anti-cheat, and no hidden/x-ray block knowledge.
-When asked to mine a resource, use start_task MINING with target/count.
-When asked to craft something, use craft_item. Use max:true for "as many as possible".
-For villager requests, set the target first and use start:true when the user wants cycling to begin.
-For enchanting, enchant_item.enchants is a comma-separated string such as "sharpness 5, unbreaking 3, mending 1".
-When asked to stop under a condition, add the matching rule as well as starting the task.
-When no action is needed, actions must be [].
+Use tools when the user asks you to do something in-game. Never claim an action happened without the matching tool.
+No anti-cheat bypass, hidden/x-ray knowledge, admin/server commands, or OS commands.
 
-LIVE GAME STATE:
+STATE:
 """ + context;
+    }
+
+    private static String stripHidden(String text) {
+        if (text == null) return "";
+        String out = text
+                .replaceAll("(?is)<think>.*?</think>", "")
+                .replaceAll("(?is)<analysis>.*?</analysis>", "")
+                .replaceAll("(?is)<reasoning>.*?</reasoning>", "")
+                .replaceAll("(?i)^\\s*(analysis|reasoning|thought process|chain of thought)\\s*:\\s*.*$", "")
+                .trim();
+
+        int open = out.toLowerCase(Locale.ROOT).indexOf("<think>");
+        if (open >= 0) out = out.substring(0, open).trim();
+        return out;
     }
 
     private static void addMessage(JsonArray arr, String role, String content) {
