@@ -38,7 +38,7 @@ public final class AutomationManager {
         state = mode == Mode.IDLE ? State.IDLE : State.SEARCHING;
         paused = false;
         target = null;
-        if (client.player != null) start = client.player.getPos();
+        if (client.player != null) start = client.player.getEntityPos();
         reason = mode == Mode.IDLE ? "Ready" : "Task started";
         SurvOsClient.notice("Automation: " + pretty(mode));
     }
@@ -81,7 +81,7 @@ public final class AutomationManager {
             stopMovement(client);
             return;
         }
-        if (start != null && p.getPos().distanceTo(start) > cfg.maxDistanceFromStart) {
+        if (start != null && p.getEntityPos().distanceTo(start) > cfg.maxDistanceFromStart) {
             state = State.BLOCKED;
             reason = "Distance limit reached";
             stopMovement(client);
