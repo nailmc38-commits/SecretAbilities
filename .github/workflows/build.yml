@@ -1,10 +1,8 @@
-name: Build Mini Game Hub
-
+name: Build SURV OS
 on:
   workflow_dispatch:
   push:
-    branches: [ main, master ]
-
+    branches: [ surv-os ]
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -24,11 +22,11 @@ jobs:
           gradle-version: '9.2.1'
       - name: Build
         run: gradle clean build --stacktrace
-      - name: Upload Mini Game Hub JAR
+      - name: Upload SURV OS JAR
         uses: actions/upload-artifact@v4
         with:
-          name: MiniGameHub-1.21.11
+          name: SURV-OS-1.21.11
           path: |
-            build/libs/minigamehub-*.jar
+            build/libs/SURV-OS-*.jar
             !build/libs/*-sources.jar
           if-no-files-found: error

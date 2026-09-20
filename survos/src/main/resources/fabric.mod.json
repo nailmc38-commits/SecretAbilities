@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "survos",
+  "version": "4.0.0-alpha1",
+  "name": "SURV // OS",
+  "description": "Futuristic survival HUD, voice command center, smart automation, crafting, villagers and enchanting.",
+  "authors": ["Neil"],
+  "environment": "client",
+  "entrypoints": {
+    "client": ["com.survos.SurvOsClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.4",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
