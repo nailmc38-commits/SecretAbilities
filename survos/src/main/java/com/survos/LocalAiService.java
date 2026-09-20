@@ -222,8 +222,10 @@ go_waypoint {name:string}
 start_route_recording {name:string}
 stop_route_recording {}
 apply_loadout {name:"MINING|COMBAT|BUILDING"}
+set_villager_target {enchantment:string, min_level?:number, max_price?:number, delay_ms?:number, start?:boolean}
 open_villager {}
 toggle_villager {}
+enchant_item {enchants:string}
 open_enchant {}
 craft_item {item:string, count?:number, max?:boolean}
 open_craft {}
@@ -233,6 +235,8 @@ session_stats {}
 No arbitrary commands, no server/admin actions, no bypassing anti-cheat, and no hidden/x-ray block knowledge.
 When asked to mine a resource, use start_task MINING with target/count.
 When asked to craft something, use craft_item. Use max:true for "as many as possible".
+For villager requests, set the target first and use start:true when the user wants cycling to begin.
+For enchanting, enchant_item.enchants is a comma-separated string such as "sharpness 5, unbreaking 3, mending 1".
 When asked to stop under a condition, add the matching rule as well as starting the task.
 When no action is needed, actions must be [].
 
