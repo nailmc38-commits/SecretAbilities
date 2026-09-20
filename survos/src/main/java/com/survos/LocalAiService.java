@@ -60,7 +60,16 @@ public final class LocalAiService {
                     download(RUNTIME_URL, zip);
                     unzip(zip, runtime);
                     Files.deleteIfExists(zip);
+                    Path found = findFile(runtime, "llama-server.exe");
+                    if (found != null) exe = found;
                 }
+
+                if (!Files.exists(exe)) {
+                    Path found = findFile(runtime, "llama-server.exe");
+                    if (found != null) exe = found;
+                }
+
+                if (!Files.exists(exe)) throw new FileNotFoundException("llama-server.exe");
 
                 if (!Files.exists(model) || Files.size(model) < 300_000_000L) {
                     status = "DOWNLOADING AI " + downloadPercent + "%";
@@ -187,9 +196,14 @@ public final class LocalAiService {
 
     private String systemPrompt(String context) {
         return """
-You are SURV, a compact local AI inside a Minecraft Fabric survival assistant.
-Talk naturally and briefly. You can answer questions, reason about the LIVE game state below,
-and request actions using only the allowed tools. Never claim an action happened unless you include its tool call.
+You are SURV, a real local conversational AI built into a Minecraft Fabric survival assistant.
+Your personality is composed, intelligent, warm, concise, and futuristic, like a polished onboard suit assistant,
+but never imitate a real actor or named fictional character. Sound human: use contractions, vary acknowledgements,
+and avoid repetitive robotic phrases. In danger/combat, become brief and tactical. In normal conversation, be relaxed.
+Current spoken voice style: """ + SurvOsClient.CONFIG.voiceStyle + """
+
+You can answer questions, reason about the LIVE game state below, and request actions using only the allowed tools.
+Never claim an action happened unless you include its tool call. Never reveal hidden chain-of-thought.
 Return ONLY one JSON object in this exact shape:
 {"say":"short spoken reply","actions":[{"tool":"tool_name","args":{}}]}
 
@@ -242,28 +256,61 @@ LIVE GAME STATE:
 
     private void download(String url, Path out) throws Exception {
         Files.createDirectories(out.getParent());
-        URLConnection con = URI.create(url).toURL().openConnection();
-        con.setConnectTimeout(10000);
-        con.setReadTimeout(30000);
-        long total = con.getContentLengthLong();
         Path tmp = out.resolveSibling(out.getFileName() + ".part");
         long done = Files.exists(tmp) ? Files.size(tmp) : 0L;
-        if (done > 0) {
-            con = URI.create(url).toURL().openConnection();
-            con.setRequestProperty("Range", "bytes=" + done + "-");
+
+        HttpURLConnection con = (HttpURLConnection) URI.create(url).toURL().openConnection();
+        con.setInstanceFollowRedirects(true);
+        con.setConnectTimeout(15000);
+        con.setReadTimeout(45000);
+        con.setRequestProperty("User-Agent", "SURV-OS/4.0");
+        if (done > 0) con.setRequestProperty("Range", "bytes=" + done + "-");
+
+        int code = con.getResponseCode();
+        if (code >= 300 && code < 400 && con.getHeaderField("Location") != null) {
+            con.disconnect();
+            download(con.getHeaderField("Location"), out);
+            return;
         }
+
+        if (done > 0 && code != 206) {
+            Files.deleteIfExists(tmp);
+            done = 0L;
+            con.disconnect();
+            con = (HttpURLConnection) URI.create(url).toURL().openConnection();
+            con.setInstanceFollowRedirects(true);
+            con.setConnectTimeout(15000);
+            con.setReadTimeout(45000);
+            con.setRequestProperty("User-Agent", "SURV-OS/4.0");
+            code = con.getResponseCode();
+        }
+
+        if (code < 200 || code >= 300) throw new IOException("Download HTTP " + code);
+
+        long remaining = con.getContentLengthLong();
+        long expected = remaining > 0 ? done + remaining : -1L;
+
         try (InputStream in = con.getInputStream();
-             OutputStream os = Files.newOutputStream(tmp, StandardOpenOption.CREATE, StandardOpenOption.APPEND)) {
+             OutputStream os = Files.newOutputStream(
+                     tmp,
+                     StandardOpenOption.CREATE,
+                     done > 0 ? StandardOpenOption.APPEND : StandardOpenOption.TRUNCATE_EXISTING)) {
+
             byte[] buf = new byte[1024 * 256];
             int n;
             while ((n = in.read(buf)) > 0) {
                 os.write(buf, 0, n);
                 done += n;
-                long denom = total > 0 ? (done + Math.max(0, total - done)) : 0;
-                if (total > 0) downloadPercent = (int)Math.min(99, Math.round(done * 100.0 / (done + Math.max(1, total))));
-                if (status.startsWith("DOWNLOADING AI")) status = "DOWNLOADING AI " + downloadPercent + "%";
+                if (expected > 0) {
+                    downloadPercent = (int)Math.min(99, Math.round(done * 100.0 / expected));
+                    if (status.startsWith("DOWNLOADING AI"))
+                        status = "DOWNLOADING AI " + downloadPercent + "%";
+                }
             }
+        } finally {
+            con.disconnect();
         }
+
         Files.move(tmp, out, StandardCopyOption.REPLACE_EXISTING);
         downloadPercent = 100;
     }
@@ -279,6 +326,16 @@ LIVE GAME STATE:
                 Files.createDirectories(out.getParent());
                 Files.copy(zin, out, StandardCopyOption.REPLACE_EXISTING);
             }
+        }
+    }
+
+    private static Path findFile(Path root, String fileName) {
+        try (var stream = Files.walk(root, 4)) {
+            return stream.filter(Files::isRegularFile)
+                    .filter(p -> p.getFileName().toString().equalsIgnoreCase(fileName))
+                    .findFirst().orElse(null);
+        } catch (Exception e) {
+            return null;
         }
     }
 
