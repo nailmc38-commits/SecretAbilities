@@ -46,6 +46,11 @@ public final class SurvConfig {
     public String profile = "SURVIVAL";
     public boolean debugAutomation = false;
     public boolean shortVoiceReplies = true;
+    public boolean aiEnabled = true;
+    public boolean aiAutoStart = true;
+    public boolean aiSpeakReplies = true;
+    public boolean ttsEnabled = true;
+    public String voiceStyle = "CINEMATIC";
 
     public static SurvConfig load() {
         try {
