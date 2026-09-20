@@ -131,17 +131,30 @@ public final class SurvScreen extends Screen {
         int w = Math.min(420, width - 30);
         int x = width / 2 - w / 2;
 
-        primaryField = field(x, y, w, "item id, e.g. torch");
-        addButton(x, y + 27, w,
-                "CRAFT ENGINE // /craft <item>",
+        primaryField = field(x, y, 285, "item id, e.g. torch");
+        secondaryField = field(x + 291, y, w - 291, "count");
+
+        addButton(x, y + 27, 204,
+                "CRAFT X",
                 b -> {
                     String item = primaryField.getText().trim();
-                    if (item.isBlank()) SurvOsClient.notice("Enter an item, then use /craft while a crafting table is open.");
-                    else SurvOsClient.notice("Craft target: " + item + ". Use /craft " + item);
+                    int count = parseInt(secondaryField.getText(), 1);
+                    if (!item.isBlank())
+                        SurvOsClient.LEGACY.queueCraftDirect(client, item, count, false);
                 });
+
+        addButton(x + 210, y + 27, 204,
+                "CRAFT MAX",
+                b -> {
+                    String item = primaryField.getText().trim();
+                    if (!item.isBlank())
+                        SurvOsClient.LEGACY.queueCraftDirect(client, item, 1, true);
+                });
+
         addButton(x, y + 54, w,
-                "ENGINE // " + online(SurvOsClient.LEGACY.quickAvailable()),
-                b -> {});
+                "QUEUE // " + SurvOsClient.LEGACY.craftQueueStatus()
+                        + "   ENGINE // " + online(SurvOsClient.LEGACY.quickAvailable()),
+                b -> SurvOsClient.LEGACY.cancelCraftQueue());
     }
 
     private void villager(int y) {
