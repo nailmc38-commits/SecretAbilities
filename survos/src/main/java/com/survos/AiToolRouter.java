@@ -61,8 +61,23 @@ public final class AiToolRouter {
                 case "apply_loadout" -> {
                     String n=str(a,"name","MINING"); InventoryManager.applyLoadout(c,n); yield "loadout applied";
                 }
+                case "set_villager_target" -> {
+                    String ench=str(a,"enchantment","mending");
+                    int level=num(a,"min_level",1);
+                    int price=num(a,"max_price",64);
+                    int delay=num(a,"delay_ms",250);
+                    boolean ok=SurvOsClient.LEGACY.configureVillager(ench,level,price,delay);
+                    if(ok && bool(a,"start",false)) SurvOsClient.LEGACY.toggleVillager(c);
+                    yield ok ? "villager target configured" : "villager config failed";
+                }
                 case "open_villager" -> { c.setScreen(new SurvScreen(SurvScreen.Tab.VILLAGER)); yield "opened villagers"; }
                 case "toggle_villager" -> { SurvOsClient.LEGACY.toggleVillager(c); yield "villager cycler toggled"; }
+                case "enchant_item" -> {
+                    String enchants=str(a,"enchants","");
+                    yield SurvOsClient.LEGACY.startEnchantDirect(c,enchants)
+                            ? "enchant automation started"
+                            : "enchant automation failed";
+                }
                 case "open_enchant" -> { SurvOsClient.LEGACY.openEnchantBuilder(c); yield "opened enchant lab"; }
                 case "craft_item" -> {
                     String item=str(a,"item","");
