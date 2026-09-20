@@ -11,6 +11,9 @@ import net.minecraft.util.Identifier;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 public final class LegacyBridge {
     private Class<?> quickClass;
@@ -40,6 +43,9 @@ public final class LegacyBridge {
     private Class<?> tradeScreenClass;
 
     private Method enchantOpenBuilder;
+    private Method enchantTickPending;
+    private Method enchantStartAuto;
+    private Constructor<?> selectedEnchantCtor;
 
     private boolean quickAvailable;
     private boolean tradeAvailable;
@@ -126,11 +132,19 @@ public final class LegacyBridge {
     private void initAutoEnchanter() {
         try {
             Class<?> c = Class.forName("com.secret.autoenchanter.AutoEnchanterClient");
-            Object instance = c.getDeclaredConstructor().newInstance();
-            c.getMethod("onInitializeClient").invoke(instance);
 
             enchantOpenBuilder = c.getDeclaredMethod("openBuilder", MinecraftClient.class);
             enchantOpenBuilder.setAccessible(true);
+
+            enchantTickPending = c.getDeclaredMethod("tickPending", MinecraftClient.class);
+            enchantTickPending.setAccessible(true);
+
+            Class<?> selected = Class.forName("com.secret.autoenchanter.AutoEnchanterScreen$SelectedEnchant");
+            selectedEnchantCtor = selected.getDeclaredConstructor(String.class, int.class);
+            selectedEnchantCtor.setAccessible(true);
+
+            enchantStartAuto = c.getDeclaredMethod("startAuto", MinecraftClient.class, String.class, List.class);
+            enchantStartAuto.setAccessible(true);
 
             enchantAvailable = true;
         } catch (Throwable ignored) {
@@ -148,6 +162,11 @@ public final class LegacyBridge {
         try {
             if (tradeTick != null && tradeController != null)
                 tradeTick.invoke(tradeController, client);
+        } catch (Throwable ignored) {}
+
+        try {
+            if (enchantTickPending != null)
+                enchantTickPending.invoke(null, client);
         } catch (Throwable ignored) {}
     }
 
@@ -293,6 +312,82 @@ public final class LegacyBridge {
             }
         }
         return total;
+    }
+
+    public boolean configureVillager(String enchantment, int minimumLevel, int maxPrice, int delayMs) {
+        if (!tradeAvailable || tradeConfig == null) return false;
+        try {
+            Class<?> type = tradeConfig.getClass();
+            Field ench = type.getField("enchantment");
+            Field level = type.getField("minimumLevel");
+            Field price = type.getField("maxEmeraldPrice");
+            Field delay = type.getField("delayMs");
+
+            String e = enchantment == null ? "mending" : enchantment.trim().toLowerCase(Locale.ROOT);
+            if (!e.contains(":")) e = "minecraft:" + e.replace(' ', '_');
+
+            ench.set(tradeConfig, e);
+            level.setInt(tradeConfig, Math.max(1, minimumLevel));
+            price.setInt(tradeConfig, Math.max(1, maxPrice));
+            delay.setInt(tradeConfig, Math.max(50, delayMs));
+
+            Method sanitize = type.getMethod("sanitize");
+            sanitize.invoke(tradeConfig);
+            Method save = type.getMethod("save");
+            save.invoke(tradeConfig);
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public boolean startEnchantDirect(MinecraftClient client, String spec) {
+        if (!enchantAvailable || client == null || client.player == null || spec == null || spec.isBlank()) {
+            return false;
+        }
+
+        try {
+            ItemStack held = client.player.getMainHandStack();
+            if (held.isEmpty()) return false;
+
+            String itemId = Registries.ITEM.getId(held.getItem()).toString();
+            List<Object> selected = new ArrayList<>();
+
+            for (String raw : spec.split(",")) {
+                String token = raw.trim();
+                if (token.isBlank()) continue;
+
+                String[] bits = token.split("\\s+");
+                int level = 1;
+                String idPart;
+
+                if (bits.length > 1 && bits[bits.length - 1].matches("\\d+")) {
+                    level = Integer.parseInt(bits[bits.length - 1]);
+                    idPart = String.join("_", java.util.Arrays.copyOf(bits, bits.length - 1));
+                } else {
+                    int lastColon = token.lastIndexOf(':');
+                    String maybeLevel = lastColon >= 0 ? token.substring(lastColon + 1) : "";
+                    if (maybeLevel.matches("\\d+")) {
+                        level = Integer.parseInt(maybeLevel);
+                        idPart = token.substring(0, lastColon);
+                    } else {
+                        idPart = token;
+                    }
+                }
+
+                idPart = idPart.trim().toLowerCase(Locale.ROOT).replace(' ', '_');
+                if (!idPart.contains(":")) idPart = "minecraft:" + idPart;
+
+                selected.add(selectedEnchantCtor.newInstance(idPart, Math.max(1, Math.min(5, level))));
+            }
+
+            if (selected.isEmpty()) return false;
+            enchantStartAuto.invoke(null, client, itemId, selected);
+            return true;
+        } catch (Throwable t) {
+            SurvOsClient.notice("Enchant automation error.");
+            return false;
+        }
     }
 
     public void toggleVillager(MinecraftClient client) {
