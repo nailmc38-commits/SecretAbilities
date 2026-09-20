@@ -19,6 +19,7 @@ import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.BlockPos;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.*;
@@ -40,6 +41,11 @@ public final class SurvOsClient implements ClientModInitializer {
     private static boolean voiceStarted;
     private static boolean aiStarted;
     private static long lastSpokenAlert;
+    private static String lastDimension = "";
+    private static BlockPos lastAlivePos;
+    private static String lastAliveDimension = "";
+    private static boolean deathWaypointSaved;
+    private static final ArrayDeque<String> COMMAND_HISTORY = new ArrayDeque<>();
 
     @Override
     public void onInitializeClient() {
@@ -115,6 +121,12 @@ public final class SurvOsClient implements ClientModInitializer {
         ticks++;
         MEMORY.tick(client);
         STATS.tick(client);
+        handleDimensionProfile(client);
+        handleDeathMemory(client);
+
+        if (CONFIG.autoHotbar && ticks % 30 == 0 && !AUTOMATION.active()) {
+            InventoryManager.tickAutoHotbar(client);
+        }
 
         if (!voiceStarted && ticks > 40 && CONFIG.voiceEnabled && CONFIG.voiceAutoStart) {
             voiceStarted = true;
@@ -224,6 +236,7 @@ public final class SurvOsClient implements ClientModInitializer {
     public static void askAi(String userText, boolean spokenRequest) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (userText == null || userText.isBlank()) return;
+        rememberCommand(userText);
 
         if (!CONFIG.aiEnabled) {
             notice("Local AI is disabled.");
@@ -376,6 +389,49 @@ Session:
         );
     }
 
+    private static void handleDimensionProfile(MinecraftClient client) {
+        if (!CONFIG.autoDimensionProfiles || client.world == null) return;
+        String dim = client.world.getRegistryKey().getValue().toString();
+        if (dim.equals(lastDimension)) return;
+        lastDimension = dim;
+
+        if (dim.contains("the_nether")) {
+            CONFIG.applyProfile("NETHER");
+        } else if (dim.contains("the_end")) {
+            CONFIG.applyProfile("COMBAT");
+        } else if (dim.contains("overworld") && ("NETHER".equals(CONFIG.profile) || "COMBAT".equals(CONFIG.profile))) {
+            CONFIG.applyProfile("SURVIVAL");
+        }
+    }
+
+    private static void handleDeathMemory(MinecraftClient client) {
+        if (!CONFIG.autoDeathWaypoint || client.player == null || client.world == null) return;
+        String dim = client.world.getRegistryKey().getValue().toString();
+
+        if (client.player.getHealth() > 0f) {
+            lastAlivePos = new BlockPos(client.player.getBlockX(), client.player.getBlockY(), client.player.getBlockZ());
+            lastAliveDimension = dim;
+            deathWaypointSaved = false;
+            return;
+        }
+
+        if (!deathWaypointSaved && lastAlivePos != null && !lastAliveDimension.isBlank()) {
+            MEMORY.setWaypointAt("last_death", lastAlivePos, lastAliveDimension);
+            deathWaypointSaved = true;
+            notice("Saved last_death waypoint.");
+        }
+    }
+
+    private static void rememberCommand(String text) {
+        if (text == null || text.isBlank()) return;
+        COMMAND_HISTORY.addFirst(text.trim());
+        while (COMMAND_HISTORY.size() > 12) COMMAND_HISTORY.removeLast();
+    }
+
+    public static List<String> recentCommands() {
+        return List.copyOf(COMMAND_HISTORY);
+    }
+
     private static boolean containsAny(String q, String... terms) {
         for (String t : terms) if (q.contains(t)) return true;
         return false;
@@ -471,9 +527,22 @@ Session:
                     p.getBoundingBox().expand(16),
                     e -> e.isAlive()
             ).size();
-            lines.add(new Line(
-                    "THREAT " + (hostile == 0 ? "CLEAR" : hostile + " HOSTILE"),
-                    hostile == 0 ? 0xFF76F7A8 : 0xFFFF7878));
+            String threat;
+            int threatColor;
+            if (hostile == 0) {
+                threat = "CLEAR";
+                threatColor = 0xFF76F7A8;
+            } else if (p.getHealth() <= 8f || hostile >= 5) {
+                threat = "HIGH // " + hostile;
+                threatColor = 0xFFFF5D5D;
+            } else if (hostile >= 2) {
+                threat = "ELEVATED // " + hostile;
+                threatColor = 0xFFFFB45D;
+            } else {
+                threat = "LOW // 1";
+                threatColor = 0xFFFFE27A;
+            }
+            lines.add(new Line("THREAT " + threat, threatColor));
         }
 
         if (CONFIG.showAutomation) {
@@ -483,6 +552,16 @@ Session:
                 auto += " // " + have + "/" + AUTOMATION.goalCount();
             }
             lines.add(new Line(auto, AUTOMATION.active() ? 0xFF64F2FF : 0xFF66727D));
+
+            if (CONFIG.showGoalRate && !AUTOMATION.goalItem().isBlank() && AUTOMATION.goalCount() > 0) {
+                int have = InventoryManager.count(p, AUTOMATION.goalItem());
+                int remaining = Math.max(0, AUTOMATION.goalCount() - have);
+                double rate = STATS.perHour(AUTOMATION.goalItem());
+                String rateText = rate < 0.1
+                        ? "RATE learning…"
+                        : String.format(Locale.ROOT, "RATE %.1f/h // ETA %s", rate, STATS.eta(AUTOMATION.goalItem(), remaining));
+                lines.add(new Line(rateText, 0xFF9FC6D8));
+            }
         }
 
         if (CONFIG.showVoice)
