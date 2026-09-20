@@ -34,6 +34,40 @@ public final class AiToolRouter {
                 case "return_start" -> {
                     yield SurvOsClient.AUTOMATION.returnToTaskStart(c) ? "returning" : "no task start";
                 }
+                case "move_player" -> {
+                    String d=str(a,"direction","forward");
+                    double seconds=dbl(a,"seconds",1.0);
+                    SurvOsClient.CONTROL.move(d,seconds);
+                    yield "moving " + d;
+                }
+                case "turn_player" -> {
+                    float deg=(float)dbl(a,"degrees",90.0);
+                    SurvOsClient.CONTROL.turn(c,deg);
+                    yield "turned";
+                }
+                case "jump" -> {
+                    SurvOsClient.CONTROL.jump();
+                    yield "jumped";
+                }
+                case "use_item" -> {
+                    SurvOsClient.CONTROL.useItem(num(a,"ticks",12));
+                    yield "using item";
+                }
+                case "eat" -> {
+                    yield SurvOsClient.CONTROL.eat(c) ? "eating" : "no food found";
+                }
+                case "select_item" -> {
+                    String item=str(a,"item","");
+                    yield SurvOsClient.CONTROL.selectItem(c,item) ? "selected "+item : "item not found";
+                }
+                case "look_hostile" -> {
+                    yield SurvOsClient.CONTROL.lookAtNearestHostile(c,dbl(a,"range",12.0))
+                            ? "looking at hostile" : "no hostile nearby";
+                }
+                case "attack_hostile" -> {
+                    yield SurvOsClient.CONTROL.attackNearestHostile(c,dbl(a,"range",4.0))
+                            ? "attacked hostile" : "no hostile nearby";
+                }
                 case "stop_task" -> { SurvOsClient.AUTOMATION.stop(c,"AI request"); yield "stopped"; }
                 case "pause_task" -> { SurvOsClient.AUTOMATION.pause(c); yield "paused"; }
                 case "resume_task" -> { SurvOsClient.AUTOMATION.resume(); yield "resumed"; }
