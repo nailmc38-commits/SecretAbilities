@@ -202,17 +202,19 @@ public final class SurvScreen extends Screen {
     private void tools(int x, int y, int w) {
         int half = (w - 30) / 2;
 
-        primaryField = field(x + 12, y + 34, half - 72, "Craft item");
-        secondaryField = field(x + half - 54, y + 34, 60, "Qty");
+        TextFieldWidget craftField = field(x + 12, y + 34, half - 72, "Craft item");
+        TextFieldWidget countField = field(x + half - 54, y + 34, 60, "Qty");
+
         addButton(x + half + 12, y + 34, (half - 6) / 2, "CRAFT X",
                 () -> {
-                    String item = primaryField.getText().trim();
+                    String item = craftField.getText().trim();
                     if (!item.isBlank()) SurvOsClient.LEGACY.queueCraftDirect(
-                            client, item, parseInt(secondaryField.getText(), 1), false);
+                            client, item, parseInt(countField.getText(), 1), false);
                 }, false);
+
         addButton(x + half + 18 + (half - 6) / 2, y + 34, (half - 6) / 2, "MAX",
                 () -> {
-                    String item = primaryField.getText().trim();
+                    String item = craftField.getText().trim();
                     if (!item.isBlank()) SurvOsClient.LEGACY.queueCraftDirect(client, item, 1, true);
                 }, false);
 
@@ -226,15 +228,16 @@ public final class SurvScreen extends Screen {
         addButton(x + half + 18, y + 108, half, "APPLY COMBAT LOADOUT",
                 () -> InventoryManager.applyLoadout(client, "COMBAT"), false);
 
-        primaryField = field(x + 12, y + 148, w - 148, "Waypoint name");
+        TextFieldWidget waypointField = field(x + 12, y + 148, w - 148, "Waypoint name");
         addButton(x + w - 130, y + 148, 56, "SAVE",
                 () -> {
-                    String n = primaryField.getText().trim();
+                    String n = waypointField.getText().trim();
                     if (!n.isBlank()) SurvOsClient.MEMORY.setWaypoint(client, n);
                 }, false);
+
         addButton(x + w - 68, y + 148, 56, "GO",
                 () -> {
-                    String n = primaryField.getText().trim();
+                    String n = waypointField.getText().trim();
                     if (!n.isBlank()) SurvOsClient.AUTOMATION.goToWaypoint(client, n);
                 }, false);
 
