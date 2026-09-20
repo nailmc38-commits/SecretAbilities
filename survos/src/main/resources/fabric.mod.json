@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "survos",
-  "version": "4.1.0",
+  "version": "4.1.1",
   "name": "SURV // OS",
   "description": "Futuristic survival HUD, voice command center, smart automation, crafting, villagers and enchanting.",
   "authors": ["Neil"],
