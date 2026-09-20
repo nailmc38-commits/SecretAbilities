@@ -108,6 +108,19 @@ public final class AutomationManager {
         return true;
     }
 
+    public boolean returnToTaskStart(MinecraftClient client) {
+        if (start == null || client.world == null) return false;
+        Vec3d origin = start;
+        String dim = client.world.getRegistryKey().getValue().toString();
+        waypointTarget = new WorldMemory.Point(
+                new BlockPos((int)Math.floor(origin.x), (int)Math.floor(origin.y), (int)Math.floor(origin.z)),
+                dim
+        );
+        waypointName = "task_start";
+        start(Mode.NAVIGATE, client);
+        return true;
+    }
+
     public boolean playRoute(MinecraftClient client, String name) {
         if (SurvOsClient.MEMORY.route(name).isEmpty()) return false;
         routeName = name;
