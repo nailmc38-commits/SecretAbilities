@@ -83,13 +83,19 @@ public final class TtsService {
             return;
         }
 
-        int rate = switch (speech.style().toUpperCase(Locale.ROOT)) {
-            case "TACTICAL" -> 1;
-            case "MINIMAL" -> 2;
-            case "NORMAL" -> 0;
-            default -> -1;
+        String rate = switch (speech.style().toUpperCase(Locale.ROOT)) {
+            case "TACTICAL" -> "+6%";
+            case "MINIMAL" -> "+10%";
+            case "NORMAL" -> "0%";
+            default -> "-5%";
         };
-        int volume = "MINIMAL".equalsIgnoreCase(speech.style()) ? 82 : 94;
+        String pitch = switch (speech.style().toUpperCase(Locale.ROOT)) {
+            case "TACTICAL" -> "-5%";
+            case "MINIMAL" -> "-3%";
+            case "NORMAL" -> "-2%";
+            default -> "-8%";
+        };
+        int volume = "MINIMAL".equalsIgnoreCase(speech.style()) ? 84 : 95;
 
         status = "SPEAKING";
         String script =
@@ -97,8 +103,10 @@ public final class TtsService {
                 "$t=[Console]::In.ReadToEnd(); " +
                 "$s=New-Object System.Speech.Synthesis.SpeechSynthesizer; " +
                 "try {$s.SelectVoiceByHints([System.Speech.Synthesis.VoiceGender]::Male,[System.Speech.Synthesis.VoiceAge]::Adult)} catch {}; " +
-                "$s.Rate=" + rate + "; $s.Volume=" + volume + "; " +
-                "$s.Speak($t)";
+                "$s.Volume=" + volume + "; " +
+                "$safe=[System.Security.SecurityElement]::Escape($t); " +
+                "$ssml=\"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'><prosody rate='" + rate + "' pitch='" + pitch + "'>\"+$safe+\"</prosody></speak>\"; " +
+                "try {$s.SpeakSsml($ssml)} catch {$s.Rate=0; $s.Speak($t)}";
 
         Process p = new ProcessBuilder(
                 "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script)
