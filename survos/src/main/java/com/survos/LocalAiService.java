@@ -209,6 +209,8 @@ Return ONLY one JSON object in this exact shape:
 
 Allowed tools:
 start_task {mode:"MINING|MOB_GRIND|TREE_FARM|CROP_FARM|FISHING|ANIMAL_FARM", target?:string, count?:number}
+queue_task {mode:"MINING|MOB_GRIND|TREE_FARM|CROP_FARM|FISHING|ANIMAL_FARM", target?:string, count?:number}
+return_start {}
 stop_task {}
 pause_task {}
 resume_task {}
