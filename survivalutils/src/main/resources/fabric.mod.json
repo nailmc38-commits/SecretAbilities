@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "survivalutils",
+  "version": "${version}",
+  "name": "Survival Utils V2",
+  "description": "No-AI survival HUD, threat intelligence, warnings, player radar and quality-of-life tools.",
+  "authors": ["Neil"],
+  "license": "All Rights Reserved",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["com.survivalutils.SurvivalUtilsClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.4",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
