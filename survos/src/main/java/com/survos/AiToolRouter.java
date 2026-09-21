@@ -34,6 +34,17 @@ public final class AiToolRouter {
                 case "return_start" -> {
                     yield SurvOsClient.AUTOMATION.returnToTaskStart(c) ? "returning" : "no task start";
                 }
+                case "play_mode" -> {
+                    boolean on=bool(a,"enabled",true);
+                    if(on) SurvOsClient.PLAY.start(c); else SurvOsClient.PLAY.stop(c);
+                    yield on ? "play mode on" : "play mode off";
+                }
+                case "navigate_to" -> {
+                    int x=num(a,"x",c.player==null?0:c.player.getBlockX());
+                    int y=num(a,"y",c.player==null?64:c.player.getBlockY());
+                    int z=num(a,"z",c.player==null?0:c.player.getBlockZ());
+                    yield SurvOsClient.AUTOMATION.navigateTo(c,x,y,z) ? "navigating" : "navigation failed";
+                }
                 case "move_player" -> {
                     String d=str(a,"direction","forward");
                     double seconds=dbl(a,"seconds",1.0);
@@ -68,7 +79,12 @@ public final class AiToolRouter {
                     yield SurvOsClient.CONTROL.attackNearestHostile(c,dbl(a,"range",4.0))
                             ? "attacked hostile" : "no hostile nearby";
                 }
-                case "stop_task" -> { SurvOsClient.AUTOMATION.stop(c,"AI request"); yield "stopped"; }
+                case "stop_task" -> {
+                    if(SurvOsClient.PLAY.enabled()) SurvOsClient.PLAY.stop(c);
+                    SurvOsClient.AUTOMATION.stop(c,"AI request");
+                    SurvOsClient.CONTROL.stop(c);
+                    yield "stopped";
+                }
                 case "pause_task" -> { SurvOsClient.AUTOMATION.pause(c); yield "paused"; }
                 case "resume_task" -> { SurvOsClient.AUTOMATION.resume(); yield "resumed"; }
                 case "set_profile" -> {
@@ -85,6 +101,10 @@ public final class AiToolRouter {
                 }
                 case "go_waypoint" -> {
                     String n=str(a,"name","home"); boolean ok=SurvOsClient.AUTOMATION.goToWaypoint(c,n); yield ok?"navigating":"waypoint missing";
+                }
+                case "play_route" -> {
+                    String n=str(a,"name","route");
+                    yield SurvOsClient.AUTOMATION.playRoute(c,n) ? "route playing" : "route missing";
                 }
                 case "start_route_recording" -> {
                     String n=str(a,"name","route"); SurvOsClient.MEMORY.startRoute(n); yield "recording route";
@@ -129,6 +149,15 @@ public final class AiToolRouter {
                 case "find_storage" -> {
                     String item=str(a,"item",""); List<String> list=SurvOsClient.MEMORY.containersWith(item);
                     yield list.isEmpty()?"not remembered":String.join("; ",list.subList(0,Math.min(4,list.size())));
+                }
+                case "remember" -> {
+                    String note=str(a,"text","");
+                    SurvOsClient.CHAT_MEMORY.remember(note);
+                    yield "remembered";
+                }
+                case "recall" -> {
+                    String q=str(a,"query","");
+                    yield SurvOsClient.CHAT_MEMORY.recall(q);
                 }
                 case "session_stats" -> SurvOsClient.STATS.summary();
                 default -> "unknown tool";
