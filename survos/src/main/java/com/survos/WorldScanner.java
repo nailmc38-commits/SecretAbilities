@@ -107,10 +107,24 @@ public final class WorldScanner {
     }
 
     public static HostileEntity hostile(MinecraftClient c,double r,SurvConfig cfg) {
+        return hostile(c,r,cfg,"");
+    }
+
+    public static HostileEntity hostile(MinecraftClient c,double r,SurvConfig cfg,String filter) {
         if (c.player==null||c.world==null) return null;
-        List<HostileEntity> list=c.world.getEntitiesByClass(HostileEntity.class,c.player.getBoundingBox().expand(r),e->e.isAlive()
-                && (!cfg.avoidCreepers || !Registries.ENTITY_TYPE.getId(e.getType()).getPath().contains("creeper"))
-                && (!cfg.avoidEndermen || !Registries.ENTITY_TYPE.getId(e.getType()).getPath().contains("enderman")));
+        String q=normalize(filter==null?"":filter);
+        List<HostileEntity> list=c.world.getEntitiesByClass(
+                HostileEntity.class,
+                c.player.getBoundingBox().expand(r),
+                e->{
+                    if(!e.isAlive()) return false;
+                    String id=Registries.ENTITY_TYPE.getId(e.getType()).getPath();
+
+                    if(!q.isBlank() && !id.contains(q)) return false;
+                    if(q.isBlank() && cfg.avoidCreepers && id.contains("creeper")) return false;
+                    if(q.isBlank() && cfg.avoidEndermen && id.contains("enderman")) return false;
+                    return true;
+                });
         return list.stream().min(Comparator.comparingDouble(c.player::squaredDistanceTo)).orElse(null);
     }
 
