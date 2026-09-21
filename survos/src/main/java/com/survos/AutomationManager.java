@@ -108,6 +108,15 @@ public final class AutomationManager {
         return true;
     }
 
+    public boolean navigateTo(MinecraftClient client, int x, int y, int z) {
+        if (client == null || client.world == null) return false;
+        String dim = client.world.getRegistryKey().getValue().toString();
+        waypointTarget = new WorldMemory.Point(new BlockPos(x, y, z), dim);
+        waypointName = x + "," + y + "," + z;
+        start(Mode.NAVIGATE, client);
+        return true;
+    }
+
     public boolean returnToTaskStart(MinecraftClient client) {
         if (start == null || client.world == null) return false;
         Vec3d origin = start;
