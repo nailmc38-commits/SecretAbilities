@@ -46,7 +46,7 @@ public final class SurvConfig {
     public boolean showHeldItem = true;
     public boolean showFps = true;
     public boolean showPing = true;
-    public boolean showNearbyPlayers = false;
+    public boolean showNearbyPlayers = true;
     public boolean showMemory = false;
     public boolean compactHud = true;
     public boolean hudRight = true;

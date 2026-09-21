@@ -880,10 +880,32 @@ SESSION
         }
 
         if (CONFIG.showNearbyPlayers) {
-            long players = client.world.getPlayers().stream()
+            var nearbyPlayers = client.world.getPlayers().stream()
                     .filter(x -> x != p && x.squaredDistanceTo(p) <= 32 * 32)
-                    .count();
-            lines.add(new Line("PLAYERS NEAR " + players, 0xFF9DD0FF));
+                    .sorted(java.util.Comparator.comparingDouble(p::squaredDistanceTo))
+                    .toList();
+
+            lines.add(new Line("PLAYERS NEAR " + nearbyPlayers.size(), 0xFF9DD0FF));
+
+            int shown = 0;
+            for (var other : nearbyPlayers) {
+                if (shown++ >= 3) break;
+
+                double dist = Math.sqrt(p.squaredDistanceTo(other));
+                boolean spectator = false;
+
+                if (client.getNetworkHandler() != null) {
+                    var info = client.getNetworkHandler().getPlayerListEntry(other.getUuid());
+                    spectator = info != null && info.getGameMode() == GameMode.SPECTATOR;
+                }
+
+                String name = other.getGameProfile().name();
+                lines.add(new Line(
+                        "  " + name
+                                + " " + String.format(Locale.ROOT, "%.1fm", dist)
+                                + (spectator ? " [SPEC]" : ""),
+                        spectator ? 0xFFFF8C8C : 0xFFB6DFFF));
+            }
         }
 
         if (CONFIG.showFps)
