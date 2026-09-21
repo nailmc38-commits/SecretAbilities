@@ -109,11 +109,11 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
 
         if (CONFIG.isEnabled(Feature.DIRECTION_HUD)) {
             Direction facing = Direction.fromHorizontalDegrees(p.getYaw());
-            lines.add(new Line("DIR " + facing.getName().toUpperCase(Locale.ROOT), 0xFFAEDBFF));
+            lines.add(new Line("DIR " + facing.asString().toUpperCase(Locale.ROOT), 0xFFAEDBFF));
         }
 
         if (CONFIG.isEnabled(Feature.FALL_DISTANCE_HUD)) {
-            float fall = p.fallDistance;
+            double fall = p.fallDistance;
             int fallColor = fall >= 8f ? 0xFFFF5D5D : (fall >= 4f ? 0xFFFFC15A : 0xFF9FB4C0);
             lines.add(new Line(
                     String.format(Locale.ROOT, "FALL %.1fm // %s", fall, AUTO_CLUTCH.status()),
