@@ -22,6 +22,74 @@ public final class InventoryManager {
         return n;
     }
 
+    public static boolean has(PlayerEntity p, String query) {
+        return count(p, query) > 0;
+    }
+
+    public static int countAny(PlayerEntity p, String... queries) {
+        int total = 0;
+        if (queries == null) return 0;
+        for (String q : queries) total += count(p, q);
+        return total;
+    }
+
+    public static int foodCount(PlayerEntity p) {
+        int total = 0;
+        for (int i = 0; i < p.getInventory().size(); i++) {
+            ItemStack s = p.getInventory().getStack(i);
+            if (!s.isEmpty() && s.getItem().getUseAction(s) == UseAction.EAT) {
+                String id = id(s);
+                if (!id.contains("rotten_flesh")
+                        && !id.contains("spider_eye")
+                        && !id.contains("pufferfish")) {
+                    total += s.getCount();
+                }
+            }
+        }
+        return total;
+    }
+
+    public static String hotbarSummary(PlayerEntity p) {
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < 9; i++) {
+            if (i > 0) out.append(" | ");
+            ItemStack s = p.getInventory().getStack(i);
+            out.append(i + 1).append(":");
+            if (s.isEmpty()) out.append("empty");
+            else out.append(id(s).replace("minecraft:", "")).append(" x").append(s.getCount());
+        }
+        return out.toString();
+    }
+
+    public static String fullSummary(PlayerEntity p) {
+        java.util.LinkedHashMap<String,Integer> counts = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < p.getInventory().size(); i++) {
+            ItemStack s = p.getInventory().getStack(i);
+            if (s.isEmpty()) continue;
+            counts.merge(id(s).replace("minecraft:", ""), s.getCount(), Integer::sum);
+        }
+        StringBuilder out = new StringBuilder();
+        for (var e : counts.entrySet()) {
+            if (!out.isEmpty()) out.append(", ");
+            out.append(e.getKey()).append(" x").append(e.getValue());
+        }
+        return out.isEmpty() ? "empty" : out.toString();
+    }
+
+    public static String equipmentSummary(PlayerEntity p) {
+        StringBuilder out = new StringBuilder("armor=");
+        boolean first = true;
+        for (ItemStack s : p.getArmorItems()) {
+            if (!first) out.append(",");
+            first = false;
+            out.append(s.isEmpty() ? "empty" : id(s).replace("minecraft:", ""));
+            if (!s.isEmpty() && s.isDamageable()) out.append("@").append(durabilityPercent(s)).append("%");
+        }
+        ItemStack off = p.getOffHandStack();
+        out.append(" offhand=").append(off.isEmpty() ? "empty" : id(off).replace("minecraft:", ""));
+        return out.toString();
+    }
+
     public static int count(PlayerEntity p,String query) {
         if(query==null||query.isBlank()) return 0;
         String q=WorldScanner.normalize(query);
