@@ -99,6 +99,15 @@ public final class AiToolRouter {
                 case "save_waypoint" -> {
                     String n=str(a,"name","home"); SurvOsClient.MEMORY.setWaypoint(c,n); yield "waypoint saved";
                 }
+                case "save_location" -> {
+                    String n=str(a,"name","location");
+                    int x=num(a,"x",c.player==null?0:c.player.getBlockX());
+                    int y=num(a,"y",c.player==null?64:c.player.getBlockY());
+                    int z=num(a,"z",c.player==null?0:c.player.getBlockZ());
+                    yield SurvOsClient.MEMORY.setWaypointAtCurrentDimension(c,n,x,y,z)
+                            ? "saved "+n+" at "+x+","+y+","+z
+                            : "location save failed";
+                }
                 case "go_waypoint" -> {
                     String n=str(a,"name","home"); boolean ok=SurvOsClient.AUTOMATION.goToWaypoint(c,n); yield ok?"navigating":"waypoint missing";
                 }
