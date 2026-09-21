@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "survos",
-  "version": "5.0.0",
+  "version": "5.1.0",
   "name": "SURV // OS",
   "description": "All-in-one survival HUD, threat intelligence, voice AI, takeover automation, navigation, memory, crafting, villagers, enchanting, auto refill and SeedCrackerX.",
   "authors": ["Neil"],
