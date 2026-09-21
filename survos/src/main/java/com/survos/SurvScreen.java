@@ -490,9 +490,25 @@ public final class SurvScreen extends Screen {
         addToggle(x + 12, row, half, "Arrows",
                 () -> SurvOsClient.CONFIG.showArrows,
                 v -> SurvOsClient.CONFIG.showArrows = v);
-        addToggle(x + half + 18, row, half, "Threats",
+        addToggle(x + half + 18, row, half, "Threat system",
                 () -> SurvOsClient.CONFIG.showHostiles,
                 v -> SurvOsClient.CONFIG.showHostiles = v);
+        row += 34;
+
+        addToggle(x + 12, row, half, "Threat reasons",
+                () -> SurvOsClient.CONFIG.showThreatReasons,
+                v -> SurvOsClient.CONFIG.showThreatReasons = v);
+        addToggle(x + half + 18, row, half, "Readiness score",
+                () -> SurvOsClient.CONFIG.showReadiness,
+                v -> SurvOsClient.CONFIG.showReadiness = v);
+        row += 34;
+
+        addToggle(x + 12, row, half, "Nearest threat",
+                () -> SurvOsClient.CONFIG.showNearestThreat,
+                v -> SurvOsClient.CONFIG.showNearestThreat = v);
+        addToggle(x + half + 18, row, half, "Threat voice warnings",
+                () -> SurvOsClient.CONFIG.threatVoiceWarnings,
+                v -> SurvOsClient.CONFIG.threatVoiceWarnings = v);
         row += 34;
 
         addToggle(x + 12, row, half, "Nearby players",
@@ -660,9 +676,9 @@ public final class SurvScreen extends Screen {
         addToggle(x + 12, y + 72, half, "Smart alerts",
                 () -> SurvOsClient.CONFIG.smartAlerts,
                 v -> SurvOsClient.CONFIG.smartAlerts = v);
-        addToggle(x + half + 18, y + 72, half, "Auto hotbar",
-                () -> SurvOsClient.CONFIG.autoHotbar,
-                v -> SurvOsClient.CONFIG.autoHotbar = v);
+        addToggle(x + half + 18, y + 72, half, "Spectator warning",
+                () -> SurvOsClient.CONFIG.spectatorWarnings,
+                v -> SurvOsClient.CONFIG.spectatorWarnings = v);
 
         addScrollingButton(x + 12, y + 108, half,
                 "PROFILE  " + SurvOsClient.CONFIG.profile,
@@ -700,9 +716,23 @@ public final class SurvScreen extends Screen {
                 () -> SurvOsClient.CONFIG.autoDeathWaypoint,
                 v -> SurvOsClient.CONFIG.autoDeathWaypoint = v);
 
-        addScrollingButton(x + 12, y + 186, w - 24, "COMBAT HOTBAR  //  editable below", () -> {}, true);
+        addToggle(x + 12, y + 178, half, "Fire warning",
+                () -> SurvOsClient.CONFIG.alertFire,
+                v -> SurvOsClient.CONFIG.alertFire = v);
+        addToggle(x + half + 18, y + 178, half, "Low-air warning",
+                () -> SurvOsClient.CONFIG.alertLowAir,
+                v -> SurvOsClient.CONFIG.alertLowAir = v);
 
-        int row = y + 222;
+        addToggle(x + 12, y + 212, half, "No-totem warning",
+                () -> SurvOsClient.CONFIG.alertNoTotem,
+                v -> SurvOsClient.CONFIG.alertNoTotem = v);
+        addToggle(x + half + 18, y + 212, half, "Low-armor warning",
+                () -> SurvOsClient.CONFIG.alertLowArmor,
+                v -> SurvOsClient.CONFIG.alertLowArmor = v);
+
+        addScrollingButton(x + 12, y + 254, w - 24, "COMBAT HOTBAR  //  editable below", () -> {}, true);
+
+        int row = y + 290;
         combatField(x + 12, row, half, "1  Sword", SurvOsClient.CONFIG.combatSlot1, v -> SurvOsClient.CONFIG.combatSlot1 = v);
         combatField(x + half + 18, row, half, "2  Pearl", SurvOsClient.CONFIG.combatSlot2, v -> SurvOsClient.CONFIG.combatSlot2 = v);
         row += 34;
@@ -821,8 +851,8 @@ public final class SurvScreen extends Screen {
     private int maxScroll() {
         int viewport = Math.max(120, contentBottom - CONTENT_TOP - 8);
         int content = switch (tab) {
-            case SETTINGS -> 620;
-            case HUD -> 980;
+            case SETTINGS -> 700;
+            case HUD -> 1060;
             case REFILL -> 380;
             case AI -> 350;
             case TAKEOVER -> 350;
