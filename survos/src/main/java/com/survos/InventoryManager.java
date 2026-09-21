@@ -138,18 +138,48 @@ public final class InventoryManager {
 
     public static void applyLoadout(MinecraftClient c,String profile) {
         if(c.player==null) return;
+        String p=profile==null?"":profile.toLowerCase(Locale.ROOT);
+
+        if ("combat".equals(p)) {
+            SurvConfig cfg = SurvOsClient.CONFIG;
+            String[] primary = {
+                    cfg.combatSlot1, cfg.combatSlot2, cfg.combatSlot3,
+                    cfg.combatSlot4, cfg.combatSlot5, cfg.combatSlot6,
+                    cfg.combatSlot7, cfg.combatSlot8, cfg.combatSlot9
+            };
+            String[] fallback = {
+                    "", "", "", "", "",
+                    cfg.combatSlot6Fallback,
+                    cfg.combatSlot7Fallback,
+                    "", ""
+            };
+            applyCustomHotbar(c, primary, fallback);
+            return;
+        }
+
         String[][] layouts={
-                {"combat","sword","pickaxe","axe","bow","blocks","food","water_bucket","shield","totem"},
                 {"mining","sword","pickaxe","pickaxe","shovel","blocks","torch","water_bucket","food","totem"},
                 {"building","sword","pickaxe","axe","shovel","blocks","blocks","scaffolding","food","water_bucket"}
         };
-        String[] chosen=layouts[1];
-        String p=profile==null?"":profile.toLowerCase(Locale.ROOT);
+        String[] chosen=layouts[0];
         for(String[] a:layouts) if(a[0].equals(p)) chosen=a;
         for(int slot=0;slot<9;slot++){
             String need=chosen[slot+1];
             int idx=find(c.player,need);
             if(idx>=0 && idx!=slot) moveToHotbar(c,idx,slot);
+        }
+    }
+
+    public static void applyCustomHotbar(MinecraftClient c, String[] primary, String[] fallback) {
+        if (c.player == null || primary == null) return;
+        for (int slot = 0; slot < Math.min(9, primary.length); slot++) {
+            String need = primary[slot] == null ? "" : primary[slot].trim();
+            int idx = need.isBlank() ? -1 : find(c.player, need);
+            if (idx < 0 && fallback != null && slot < fallback.length) {
+                String fb = fallback[slot] == null ? "" : fallback[slot].trim();
+                if (!fb.isBlank()) idx = find(c.player, fb);
+            }
+            if (idx >= 0 && idx != slot) moveToHotbar(c, idx, slot);
         }
     }
 
