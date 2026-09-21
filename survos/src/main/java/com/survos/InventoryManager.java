@@ -189,19 +189,29 @@ public final class InventoryManager {
 
     public static void tickAutoHotbar(MinecraftClient c) {
         if(c.player==null||c.currentScreen!=null) return;
-        refillKeyword(c,7,"food");
-        refillKeyword(c,8,"totem");
-        refillKeyword(c,5,"torch");
-    }
 
-    private static void refillKeyword(MinecraftClient c,int slot,String keyword) {
-        ItemStack current=c.player.getInventory().getStack(slot);
-        boolean good=!current.isEmpty() && (keyword.equals("food")
-                ? current.getItem().getUseAction(current)==UseAction.EAT
-                : id(current).contains(keyword));
-        if(good) return;
-        int idx=find(c.player,keyword);
-        if(idx>=0 && idx!=slot) moveToHotbar(c,idx,slot);
+        SurvConfig cfg = SurvOsClient.CONFIG;
+        cfg.sanitize();
+
+        for (int slot = 0; slot < 9; slot++) {
+            if (!cfg.autoRefillSlots[slot]) continue;
+
+            String keyword = cfg.autoRefillItems[slot] == null
+                    ? ""
+                    : cfg.autoRefillItems[slot].trim();
+
+            if (keyword.isBlank()) continue;
+
+            ItemStack current = c.player.getInventory().getStack(slot);
+
+            // Never overwrite something the player deliberately placed here.
+            if (!current.isEmpty()) continue;
+
+            int idx = find(c.player, keyword);
+            if (idx >= 0 && idx != slot) {
+                moveToHotbar(c, idx, slot);
+            }
+        }
     }
 
     public static void applyLoadout(MinecraftClient c,String profile) {
