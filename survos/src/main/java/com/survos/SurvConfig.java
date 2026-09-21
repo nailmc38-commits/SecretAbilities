@@ -6,6 +6,8 @@ import net.fabricmc.loader.api.FabricLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public final class SurvConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -122,6 +124,9 @@ public final class SurvConfig {
     public String combatSlot8 = "totem_of_undying";
     public String combatSlot9 = "shield";
 
+    // User-defined named hotbar loadouts. Each value is exactly 9 item keywords.
+    public Map<String, String[]> customLoadouts = new LinkedHashMap<>();
+
     public static SurvConfig load() {
         try {
             if (Files.exists(FILE)) {
@@ -158,6 +163,61 @@ public final class SurvConfig {
         for (int i = 0; i < 9; i++) {
             if (autoRefillItems[i] == null) autoRefillItems[i] = "";
         }
+
+        if (customLoadouts == null) customLoadouts = new LinkedHashMap<>();
+
+        Map<String, String[]> fixed = new LinkedHashMap<>();
+        for (var entry : customLoadouts.entrySet()) {
+            if (entry.getKey() == null || entry.getKey().isBlank()) continue;
+
+            String key = entry.getKey().trim().toLowerCase();
+            String[] old = entry.getValue();
+            String[] slots = new String[9];
+
+            for (int i = 0; i < 9; i++) {
+                slots[i] = old != null && i < old.length && old[i] != null
+                        ? old[i].trim()
+                        : "";
+            }
+
+            fixed.put(key, slots);
+        }
+        customLoadouts = fixed;
+    }
+
+    public void saveCustomLoadout(String name, String[] slots) {
+        sanitize();
+        if (name == null || name.isBlank()) return;
+
+        String[] copy = new String[9];
+        for (int i = 0; i < 9; i++) {
+            copy[i] = slots != null && i < slots.length && slots[i] != null
+                    ? slots[i].trim()
+                    : "";
+        }
+
+        customLoadouts.put(name.trim().toLowerCase(), copy);
+        save();
+    }
+
+    public boolean deleteCustomLoadout(String name) {
+        sanitize();
+        if (name == null || name.isBlank()) return false;
+        boolean removed = customLoadouts.remove(name.trim().toLowerCase()) != null;
+        if (removed) save();
+        return removed;
+    }
+
+    public String[] customLoadout(String name) {
+        sanitize();
+        if (name == null || name.isBlank()) return null;
+        String[] slots = customLoadouts.get(name.trim().toLowerCase());
+        return slots == null ? null : java.util.Arrays.copyOf(slots, slots.length);
+    }
+
+    public java.util.Set<String> customLoadoutNames() {
+        sanitize();
+        return java.util.Collections.unmodifiableSet(customLoadouts.keySet());
     }
 
     public void save() {
