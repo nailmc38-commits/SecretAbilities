@@ -3,7 +3,9 @@ package com.survos;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
@@ -39,6 +41,7 @@ public final class LocalNavigator {
         if (client.player == null || client.world == null) return Status.FAILED;
         PlayerEntity p = client.player;
         BlockPos here = new BlockPos(p.getBlockX(), p.getBlockY(), p.getBlockZ());
+
         if (within(here, target, range)) {
             clearKeys(client);
             reason = "arrived";
@@ -51,8 +54,13 @@ public final class LocalNavigator {
             goalRange = range;
             repath(client);
         }
+
         if (path.isEmpty()) {
-            reason = "no local path";
+            if (tryClearTowardGoal(client)) {
+                reason = "clearing obstacle";
+                return Status.MOVING;
+            }
+            reason = "no path";
             clearKeys(client);
             return Status.FAILED;
         }
@@ -62,14 +70,20 @@ public final class LocalNavigator {
         else stuckTicks = Math.max(0, stuckTicks - 2);
         lastPos = now;
 
-        if (stuckTicks > 32) {
+        if (stuckTicks > 34) {
             stuckTicks = 0;
             repaths++;
             repath(client);
-            if (path.isEmpty() || repaths > 4) {
-                reason = "stuck";
-                clearKeys(client);
-                return Status.FAILED;
+            if (path.isEmpty()) {
+                if (tryClearTowardGoal(client)) {
+                    reason = "unsticking";
+                    return Status.MOVING;
+                }
+                if (repaths > 6) {
+                    reason = "stuck";
+                    clearKeys(client);
+                    return Status.FAILED;
+                }
             }
         }
 
@@ -77,12 +91,16 @@ public final class LocalNavigator {
             BlockPos node = path.get(index);
             double dx = node.getX() + 0.5 - now.x;
             double dz = node.getZ() + 0.5 - now.z;
-            if (dx * dx + dz * dz < 0.20 && Math.abs(node.getY() - p.getY()) < 1.4) index++;
+            if (dx * dx + dz * dz < 0.24 && Math.abs(node.getY() - p.getY()) < 1.5) index++;
             else break;
         }
+
         if (index >= path.size()) {
             repath(client);
-            if (path.isEmpty()) return Status.FAILED;
+            if (path.isEmpty()) {
+                if (tryClearTowardGoal(client)) return Status.MOVING;
+                return Status.FAILED;
+            }
         }
 
         BlockPos node = path.get(Math.min(index, path.size() - 1));
@@ -98,19 +116,89 @@ public final class LocalNavigator {
         path.clear();
         index = 0;
         if (client.player == null || client.world == null || goal == null) return;
-        BlockPos start = new BlockPos(client.player.getBlockX(), client.player.getBlockY(), client.player.getBlockZ());
-        List<BlockPos> found = findPath(client.world, start, goal, goalRange, 26, 4200);
+
+        BlockPos start = new BlockPos(
+                client.player.getBlockX(),
+                client.player.getBlockY(),
+                client.player.getBlockZ());
+
+        BlockPos localTarget = chooseLocalTarget(client.world, start, goal, 22);
+        int range = localTarget.equals(goal) ? goalRange : 1;
+
+        List<BlockPos> found = findPath(client.world, start, localTarget, range, 27, 5200);
         path.addAll(found);
         reason = path.isEmpty() ? "path not found" : "repath";
     }
 
+    private static BlockPos chooseLocalTarget(World world, BlockPos start, BlockPos finalGoal, int maxStep) {
+        double dx = finalGoal.getX() - start.getX();
+        double dz = finalGoal.getZ() - start.getZ();
+        double horizontal = Math.sqrt(dx * dx + dz * dz);
+        if (horizontal <= maxStep) return finalGoal;
+
+        double scale = maxStep / horizontal;
+        int tx = start.getX() + (int)Math.round(dx * scale);
+        int tz = start.getZ() + (int)Math.round(dz * scale);
+        int baseY = start.getY();
+
+        for (int radius = 0; radius <= 4; radius++) {
+            for (int oy = -3; oy <= 3; oy++) {
+                for (int ox = -radius; ox <= radius; ox++) {
+                    for (int oz = -radius; oz <= radius; oz++) {
+                        if (Math.max(Math.abs(ox), Math.abs(oz)) != radius) continue;
+                        BlockPos p = new BlockPos(tx + ox, baseY + oy, tz + oz);
+                        if (walkable(world, p)) return p;
+                    }
+                }
+            }
+        }
+        return new BlockPos(tx, baseY, tz);
+    }
+
+    private boolean tryClearTowardGoal(MinecraftClient client) {
+        if (client.player == null || client.world == null || client.interactionManager == null || goal == null) return false;
+
+        PlayerEntity p = client.player;
+        int dx = Integer.compare(goal.getX(), p.getBlockX());
+        int dz = Integer.compare(goal.getZ(), p.getBlockZ());
+
+        if (Math.abs(goal.getX() - p.getBlockX()) > Math.abs(goal.getZ() - p.getBlockZ())) dz = 0;
+        else dx = 0;
+        if (dx == 0 && dz == 0) return false;
+
+        BlockPos front = new BlockPos(p.getBlockX() + dx, p.getBlockY(), p.getBlockZ() + dz);
+        BlockPos target = blocked(client.world, front) ? front : (blocked(client.world, front.up()) ? front.up() : null);
+        if (target == null) return false;
+
+        BlockState state = client.world.getBlockState(target);
+        if (!state.getFluidState().isEmpty()) return false;
+        if (state.getHardness(client.world, target) < 0f) return false;
+
+        InventoryManager.selectBestTool(client, state, SurvOsClient.CONFIG.durabilityStopPercent);
+        lookAt(p, Vec3d.ofCenter(target));
+
+        Direction face;
+        if (dx > 0) face = Direction.WEST;
+        else if (dx < 0) face = Direction.EAST;
+        else if (dz > 0) face = Direction.NORTH;
+        else face = Direction.SOUTH;
+
+        client.interactionManager.updateBlockBreakingProgress(target, face);
+        p.swingHand(Hand.MAIN_HAND);
+        clearMovementOnly(client);
+        return true;
+    }
+
     private static List<BlockPos> findPath(World world, BlockPos start, BlockPos target, int range, int radius, int maxNodes) {
         record Node(BlockPos pos, double g, double f) {}
+
         PriorityQueue<Node> open = new PriorityQueue<>(Comparator.comparingDouble(Node::f));
         Map<BlockPos, Double> g = new HashMap<>();
         Map<BlockPos, BlockPos> came = new HashMap<>();
+
         BlockPos s = nearestWalkable(world, start);
         if (s == null) return List.of();
+
         open.add(new Node(s, 0, heuristic(s, target)));
         g.put(s, 0.0);
         int visited = 0;
@@ -118,14 +206,19 @@ public final class LocalNavigator {
         while (!open.isEmpty() && visited++ < maxNodes) {
             Node n = open.poll();
             BlockPos pos = n.pos();
+
             if (within(pos, target, range)) return reconstruct(came, pos);
-            if (Math.abs(pos.getX() - start.getX()) > radius || Math.abs(pos.getZ() - start.getZ()) > radius || Math.abs(pos.getY() - start.getY()) > 8) continue;
+            if (Math.abs(pos.getX() - start.getX()) > radius
+                    || Math.abs(pos.getZ() - start.getZ()) > radius
+                    || Math.abs(pos.getY() - start.getY()) > 10) continue;
 
             for (int[] d : DIRS) {
-                int nx = pos.getX() + d[0], nz = pos.getZ() + d[1];
+                int nx = pos.getX() + d[0];
+                int nz = pos.getZ() + d[1];
                 BlockPos next = chooseY(world, new BlockPos(nx, pos.getY(), nz));
                 if (next == null) continue;
-                double ng = n.g() + 1.0 + Math.abs(next.getY() - pos.getY()) * 0.35;
+
+                double ng = n.g() + 1.0 + Math.abs(next.getY() - pos.getY()) * 0.40;
                 Double old = g.get(next);
                 if (old == null || ng < old) {
                     g.put(next, ng);
@@ -137,69 +230,101 @@ public final class LocalNavigator {
         return List.of();
     }
 
-    private static final int[][] DIRS={{1,0},{-1,0},{0,1},{0,-1},{1,1},{1,-1},{-1,1},{-1,-1}};
+    private static final int[][] DIRS = {
+            {1,0},{-1,0},{0,1},{0,-1},
+            {1,1},{1,-1},{-1,1},{-1,-1}
+    };
 
     private static BlockPos chooseY(World w, BlockPos base) {
-        BlockPos[] c={base,base.up(),base.down()};
-        for (BlockPos p:c) if (walkable(w,p)) return p.toImmutable();
+        BlockPos[] candidates = {base, base.up(), base.down()};
+        for (BlockPos p : candidates) if (walkable(w, p)) return p.toImmutable();
         return null;
     }
 
     private static BlockPos nearestWalkable(World w, BlockPos p) {
-        if (walkable(w,p)) return p.toImmutable();
-        if (walkable(w,p.up())) return p.up().toImmutable();
-        if (walkable(w,p.down())) return p.down().toImmutable();
+        if (walkable(w, p)) return p.toImmutable();
+        if (walkable(w, p.up())) return p.up().toImmutable();
+        if (walkable(w, p.down())) return p.down().toImmutable();
         return null;
     }
 
     public static boolean walkable(World w, BlockPos feet) {
-        BlockState a=w.getBlockState(feet), b=w.getBlockState(feet.up()), below=w.getBlockState(feet.down());
-        if (!a.getCollisionShape(w,feet).isEmpty()) return false;
-        if (!b.getCollisionShape(w,feet.up()).isEmpty()) return false;
+        BlockState a = w.getBlockState(feet);
+        BlockState b = w.getBlockState(feet.up());
+        BlockState below = w.getBlockState(feet.down());
+
+        if (!a.getCollisionShape(w, feet).isEmpty()) return false;
+        if (!b.getCollisionShape(w, feet.up()).isEmpty()) return false;
         if (!a.getFluidState().isEmpty() || !b.getFluidState().isEmpty()) return false;
-        return !below.getCollisionShape(w,feet.down()).isEmpty() && below.getFluidState().isEmpty();
+
+        return !below.getCollisionShape(w, feet.down()).isEmpty()
+                && below.getFluidState().isEmpty();
+    }
+
+    private static boolean blocked(World world, BlockPos pos) {
+        return !world.getBlockState(pos).getCollisionShape(world, pos).isEmpty();
     }
 
     private static boolean blockedAhead(MinecraftClient client, PlayerEntity p) {
-        double yaw=Math.toRadians(p.getYaw());
-        int dx=(int)Math.round(-Math.sin(yaw)), dz=(int)Math.round(Math.cos(yaw));
-        BlockPos front=new BlockPos(p.getBlockX()+dx,p.getBlockY(),p.getBlockZ()+dz);
-        return !client.world.getBlockState(front).getCollisionShape(client.world,front).isEmpty()
-                && client.world.getBlockState(front.up()).getCollisionShape(client.world,front.up()).isEmpty();
+        double yaw = Math.toRadians(p.getYaw());
+        int dx = (int)Math.round(-Math.sin(yaw));
+        int dz = (int)Math.round(Math.cos(yaw));
+        BlockPos front = new BlockPos(p.getBlockX() + dx, p.getBlockY(), p.getBlockZ() + dz);
+
+        return !client.world.getBlockState(front).getCollisionShape(client.world, front).isEmpty()
+                && client.world.getBlockState(front.up()).getCollisionShape(client.world, front.up()).isEmpty();
     }
 
-    private static List<BlockPos> reconstruct(Map<BlockPos,BlockPos> came, BlockPos end) {
-        LinkedList<BlockPos> out=new LinkedList<>();
-        BlockPos cur=end;
-        while (cur!=null) { out.addFirst(cur); cur=came.get(cur); }
+    private static List<BlockPos> reconstruct(Map<BlockPos, BlockPos> came, BlockPos end) {
+        LinkedList<BlockPos> out = new LinkedList<>();
+        BlockPos cur = end;
+        while (cur != null) {
+            out.addFirst(cur);
+            cur = came.get(cur);
+        }
         if (!out.isEmpty()) out.removeFirst();
         return out;
     }
 
     private static double heuristic(BlockPos a, BlockPos b) {
-        return Math.abs(a.getX()-b.getX())+Math.abs(a.getZ()-b.getZ())+Math.abs(a.getY()-b.getY())*1.4;
+        return Math.abs(a.getX() - b.getX())
+                + Math.abs(a.getZ() - b.getZ())
+                + Math.abs(a.getY() - b.getY()) * 1.4;
     }
 
     private static boolean within(BlockPos a, BlockPos b, int r) {
-        return Math.abs(a.getX()-b.getX())<=r && Math.abs(a.getZ()-b.getZ())<=r && Math.abs(a.getY()-b.getY())<=2;
+        return Math.abs(a.getX() - b.getX()) <= r
+                && Math.abs(a.getZ() - b.getZ()) <= r
+                && Math.abs(a.getY() - b.getY()) <= 2;
     }
 
     public static void lookAt(PlayerEntity p, Vec3d to) {
-        Vec3d from=p.getEyePos();
-        double dx=to.x-from.x, dy=to.y-from.y, dz=to.z-from.z;
-        double flat=Math.sqrt(dx*dx+dz*dz);
-        p.setYaw((float)(MathHelper.atan2(dz,dx)*57.295776)-90f);
-        p.setPitch(MathHelper.clamp((float)(-(MathHelper.atan2(dy,flat)*57.295776)),-90f,90f));
+        Vec3d from = p.getEyePos();
+        double dx = to.x - from.x;
+        double dy = to.y - from.y;
+        double dz = to.z - from.z;
+        double flat = Math.sqrt(dx * dx + dz * dz);
+
+        p.setYaw((float)(MathHelper.atan2(dz, dx) * 57.295776) - 90f);
+        p.setPitch(MathHelper.clamp(
+                (float)(-(MathHelper.atan2(dy, flat) * 57.295776)),
+                -90f,
+                90f));
     }
 
-    public static void clearKeys(MinecraftClient c) {
-        if (c==null || c.options==null) return;
+    private static void clearMovementOnly(MinecraftClient c) {
+        if (c == null || c.options == null) return;
         c.options.forwardKey.setPressed(false);
         c.options.backKey.setPressed(false);
         c.options.leftKey.setPressed(false);
         c.options.rightKey.setPressed(false);
         c.options.jumpKey.setPressed(false);
         c.options.sprintKey.setPressed(false);
+    }
+
+    public static void clearKeys(MinecraftClient c) {
+        if (c == null || c.options == null) return;
+        clearMovementOnly(c);
         c.options.sneakKey.setPressed(false);
         c.options.attackKey.setPressed(false);
         c.options.useKey.setPressed(false);
