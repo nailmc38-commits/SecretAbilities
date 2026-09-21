@@ -1,202 +1,340 @@
 package com.survos;
 
 import com.google.gson.*;
-import net.fabricmc.loader.api.FabricLoader;
 
-import java.io.*;
-import java.net.*;
+import java.net.URI;
 import java.net.http.*;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 public final class LocalAiService {
     public record AiAction(String tool, JsonObject args) {}
     public record AiReply(String say, List<AiAction> actions) {}
     private record Turn(String role, String text) {}
 
+    private enum Backend { NONE, LM_STUDIO, OLLAMA, OPENAI_LOCAL }
+
     private static final Gson GSON = new Gson();
-    private static final String RUNTIME_URL =
-            "https://github.com/ggml-org/llama.cpp/releases/download/b10964/llama-b10964-bin-win-cpu-x64.zip";
-    private static final String MODEL_URL =
-            "https://huggingface.co/ggml-org/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_0.gguf?download=true";
-    private static final int PORT = 11439;
 
     private final HttpClient http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(8)).build();
-    private final AtomicBoolean booting = new AtomicBoolean();
+            .connectTimeout(Duration.ofSeconds(2))
+            .build();
+    private final AtomicBoolean detecting = new AtomicBoolean();
     private final Deque<Turn> history = new ArrayDeque<>();
 
-    private volatile Process server;
-    private volatile String status = "OFFLINE";
-    private volatile int downloadPercent;
+    private volatile Backend backend = Backend.NONE;
+    private volatile String baseUrl = "";
+    private volatile String model = "";
+    private volatile String status = "SEARCHING";
     private volatile boolean ready;
     private volatile String lastReply = "";
+    private volatile long lastDetectMs;
 
     public String status() { return status; }
-    public int downloadPercent() { return downloadPercent; }
     public boolean ready() { return ready; }
     public String lastReply() { return lastReply; }
+    public int downloadPercent() { return 0; }
+
+    public String backendName() {
+        return switch (backend) {
+            case LM_STUDIO -> "LM STUDIO";
+            case OLLAMA -> "OLLAMA";
+            case OPENAI_LOCAL -> "LOCAL OPENAI";
+            default -> "NONE";
+        };
+    }
 
     public void ensureStarted() {
-        if (ready || booting.getAndSet(true)) return;
-        Thread.ofVirtual().name("SURV-AI-Boot").start(() -> {
+        if (ready) return;
+        long now = System.currentTimeMillis();
+        if (now - lastDetectMs < 2500L || detecting.getAndSet(true)) return;
+        lastDetectMs = now;
+
+        Thread.ofVirtual().name("SURV-AI-Detect").start(() -> {
             try {
-                status = "PREPARING";
-                Path root = FabricLoader.getInstance().getGameDir().resolve("surv-ai");
-                Path runtime = root.resolve("llama");
-                Path exe = runtime.resolve("llama-server.exe");
-                Path model = root.resolve("Qwen3-0.6B-Q4_0.gguf");
-                Files.createDirectories(root);
+                status = "SEARCHING LOCAL AI";
 
-                if (!Files.exists(exe)) {
-                    status = "DOWNLOADING RUNTIME";
-                    Path zip = root.resolve("llama-win-x64.zip");
-                    download(RUNTIME_URL, zip);
-                    unzip(zip, runtime);
-                    Files.deleteIfExists(zip);
-                    Path found = findFile(runtime, "llama-server.exe");
-                    if (found != null) exe = found;
+                if (detectOpenAi(
+                        "http://127.0.0.1:1234/v1",
+                        Backend.LM_STUDIO,
+                        "LM STUDIO")) {
+                    return;
                 }
 
-                if (!Files.exists(exe)) {
-                    Path found = findFile(runtime, "llama-server.exe");
-                    if (found != null) exe = found;
+                if (detectOllama()) {
+                    return;
                 }
 
-                if (!Files.exists(exe)) throw new FileNotFoundException("llama-server.exe");
-
-                if (!Files.exists(model) || Files.size(model) < 300_000_000L) {
-                    status = "DOWNLOADING AI " + downloadPercent + "%";
-                    download(MODEL_URL, model);
+                if (detectOpenAi(
+                        "http://127.0.0.1:11439/v1",
+                        Backend.OPENAI_LOCAL,
+                        "LOCAL OPENAI")) {
+                    return;
                 }
 
-                if (server != null && server.isAlive()) server.destroyForcibly();
-                status = "STARTING AI";
-                int threads = Math.max(3, Math.min(5, Runtime.getRuntime().availableProcessors() - 2));
-                ProcessBuilder pb = new ProcessBuilder(
-                        exe.toAbsolutePath().toString(),
-                        "-m", model.toAbsolutePath().toString(),
-                        "--host", "127.0.0.1",
-                        "--port", Integer.toString(PORT),
-                        "-c", "1536",
-                        "-b", "128",
-                        "-t", Integer.toString(threads),
-                        "--no-webui",
-                        "--reasoning-format", "none"
-                );
-                pb.directory(runtime.toFile());
-                pb.redirectErrorStream(true);
-                server = pb.start();
-                Thread.ofVirtual().name("SURV-AI-Log").start(() -> drain(server));
-
-                long end = System.currentTimeMillis() + 90_000L;
-                while (System.currentTimeMillis() < end && server.isAlive()) {
-                    if (health()) {
-                        ready = true;
-                        status = "ONLINE";
-                        break;
-                    }
-                    Thread.sleep(350);
-                }
-                if (!ready) status = "AI START ERROR";
-            } catch (Throwable t) {
-                status = "AI ERROR";
+                ready = false;
+                backend = Backend.NONE;
+                baseUrl = "";
+                model = "";
+                status = "NO LOCAL AI SERVER";
             } finally {
-                booting.set(false);
+                detecting.set(false);
             }
         });
     }
 
     public void stop() {
         ready = false;
+        backend = Backend.NONE;
+        baseUrl = "";
+        model = "";
         status = "OFFLINE";
-        if (server != null) {
-            try { server.destroyForcibly(); } catch (Throwable ignored) {}
-        }
-        server = null;
     }
 
     public void ask(String user, String gameContext, Consumer<AiReply> callback) {
-        ensureStarted();
         if (!ready) {
-            String msg = status.startsWith("DOWNLOADING") ? status : "AI is " + status.toLowerCase(Locale.ROOT);
-            callback.accept(new AiReply(msg, List.of()));
+            ensureStarted();
+            callback.accept(new AiReply(
+                    "I can't reach a local AI server yet. Direct voice controls and takeover still work.",
+                    List.of()));
             return;
         }
+
         Thread.ofVirtual().name("SURV-AI-Chat").start(() -> {
             try {
-                JsonObject req = new JsonObject();
-                req.addProperty("model", "Qwen3-0.6B");
-                req.addProperty("temperature", 0.20);
-                req.addProperty("top_p", 0.85);
-                req.addProperty("max_tokens", 110);
-                req.addProperty("stream", false);
+                String content = switch (backend) {
+                    case OLLAMA -> askOllama(user, gameContext);
+                    case LM_STUDIO, OPENAI_LOCAL -> askOpenAi(user, gameContext);
+                    default -> "";
+                };
 
-                JsonArray messages = new JsonArray();
-                addMessage(messages, "system", systemPrompt(gameContext));
-                synchronized (history) {
-                    for (Turn t : history) addMessage(messages, t.role(), t.text());
-                }
-                addMessage(messages, "user", user + "\n/no_think");
-                req.add("messages", messages);
-
-                HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create("http://127.0.0.1:" + PORT + "/v1/chat/completions"))
-                        .timeout(Duration.ofSeconds(20))
-                        .header("Content-Type", "application/json")
-                        .POST(HttpRequest.BodyPublishers.ofString(GSON.toJson(req), StandardCharsets.UTF_8))
-                        .build();
-                HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-                JsonObject root = JsonParser.parseString(response.body()).getAsJsonObject();
-                String content = root.getAsJsonArray("choices").get(0).getAsJsonObject()
-                        .getAsJsonObject("message").get("content").getAsString();
                 AiReply parsed = parseReply(stripHidden(content));
                 lastReply = parsed.say();
 
                 synchronized (history) {
-                    history.addLast(new Turn("user", user));
-                    history.addLast(new Turn("assistant", parsed.say()));
-                    while (history.size() > 4) history.removeFirst();
+                    history.addLast(new Turn("user", compact(user)));
+                    history.addLast(new Turn("assistant", compact(parsed.say())));
+                    while (history.size() > 6) history.removeFirst();
                 }
+
                 callback.accept(parsed);
             } catch (Throwable t) {
                 ready = false;
-                status = "AI CONNECTION ERROR";
-                callback.accept(new AiReply("My local AI connection failed. I kept automation controls available.", List.of()));
+                status = "AI CONNECTION LOST";
+                backend = Backend.NONE;
+                callback.accept(new AiReply(
+                        "The local AI connection dropped. Direct controls are still available.",
+                        List.of()));
                 ensureStarted();
             }
         });
     }
 
+    private String askOpenAi(String user, String gameContext) throws Exception {
+        JsonObject req = new JsonObject();
+        req.addProperty("model", model);
+        req.addProperty("temperature", 0.20);
+        req.addProperty("top_p", 0.85);
+        req.addProperty("max_tokens", 130);
+        req.addProperty("stream", false);
+
+        JsonArray messages = buildMessages(user, gameContext);
+        req.add("messages", messages);
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl + "/chat/completions"))
+                .timeout(Duration.ofSeconds(18))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(
+                        GSON.toJson(req),
+                        StandardCharsets.UTF_8))
+                .build();
+
+        HttpResponse<String> response = http.send(
+                request,
+                HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw new IllegalStateException("HTTP " + response.statusCode());
+        }
+
+        JsonObject root = JsonParser.parseString(response.body()).getAsJsonObject();
+        return root.getAsJsonArray("choices")
+                .get(0).getAsJsonObject()
+                .getAsJsonObject("message")
+                .get("content").getAsString();
+    }
+
+    private String askOllama(String user, String gameContext) throws Exception {
+        JsonObject req = new JsonObject();
+        req.addProperty("model", model);
+        req.addProperty("stream", false);
+
+        JsonArray messages = buildMessages(user, gameContext);
+        req.add("messages", messages);
+
+        JsonObject options = new JsonObject();
+        options.addProperty("temperature", 0.20);
+        options.addProperty("num_predict", 130);
+        req.add("options", options);
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl + "/api/chat"))
+                .timeout(Duration.ofSeconds(18))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(
+                        GSON.toJson(req),
+                        StandardCharsets.UTF_8))
+                .build();
+
+        HttpResponse<String> response = http.send(
+                request,
+                HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw new IllegalStateException("HTTP " + response.statusCode());
+        }
+
+        JsonObject root = JsonParser.parseString(response.body()).getAsJsonObject();
+        return root.getAsJsonObject("message").get("content").getAsString();
+    }
+
+    private JsonArray buildMessages(String user, String gameContext) {
+        JsonArray messages = new JsonArray();
+        addMessage(messages, "system", systemPrompt(gameContext));
+
+        synchronized (history) {
+            for (Turn t : history) {
+                addMessage(messages, t.role(), t.text());
+            }
+        }
+
+        addMessage(messages, "user", user + "\n/no_think");
+        return messages;
+    }
+
+    private boolean detectOpenAi(
+            String candidateBase,
+            Backend candidateBackend,
+            String label
+    ) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(candidateBase + "/models"))
+                    .timeout(Duration.ofSeconds(2))
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = http.send(
+                    request,
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+
+            if (response.statusCode() != 200) return false;
+
+            JsonObject root = JsonParser.parseString(response.body()).getAsJsonObject();
+            JsonArray data = root.has("data") && root.get("data").isJsonArray()
+                    ? root.getAsJsonArray("data")
+                    : new JsonArray();
+
+            if (data.isEmpty()) return false;
+
+            JsonObject first = data.get(0).getAsJsonObject();
+            String id = first.has("id") ? first.get("id").getAsString() : "";
+            if (id.isBlank()) return false;
+
+            backend = candidateBackend;
+            baseUrl = candidateBase;
+            model = id;
+            ready = true;
+            status = label + " ONLINE";
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private boolean detectOllama() {
+        try {
+            String candidate = "http://127.0.0.1:11434";
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(candidate + "/api/tags"))
+                    .timeout(Duration.ofSeconds(2))
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = http.send(
+                    request,
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+
+            if (response.statusCode() != 200) return false;
+
+            JsonObject root = JsonParser.parseString(response.body()).getAsJsonObject();
+            JsonArray models = root.has("models") && root.get("models").isJsonArray()
+                    ? root.getAsJsonArray("models")
+                    : new JsonArray();
+
+            if (models.isEmpty()) return false;
+
+            JsonObject first = models.get(0).getAsJsonObject();
+            String name = first.has("name") ? first.get("name").getAsString() : "";
+            if (name.isBlank()) return false;
+
+            backend = Backend.OLLAMA;
+            baseUrl = candidate;
+            model = name;
+            ready = true;
+            status = "OLLAMA ONLINE";
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
     private AiReply parseReply(String content) {
         try {
-            int a = content.indexOf('{'), b = content.lastIndexOf('}');
+            int a = content.indexOf('{');
+            int b = content.lastIndexOf('}');
+
             if (a >= 0 && b > a) {
-                JsonObject o = JsonParser.parseString(content.substring(a, b + 1)).getAsJsonObject();
-                String say = o.has("say") ? stripHidden(o.get("say").getAsString()) : "Okay.";
+                JsonObject o = JsonParser.parseString(
+                        content.substring(a, b + 1)).getAsJsonObject();
+
+                String say = o.has("say")
+                        ? stripHidden(o.get("say").getAsString())
+                        : "Okay.";
+
                 if (say.length() > 180) say = say.substring(0, 180);
+
                 List<AiAction> actions = new ArrayList<>();
                 if (o.has("actions") && o.get("actions").isJsonArray()) {
                     for (JsonElement el : o.getAsJsonArray("actions")) {
                         if (!el.isJsonObject()) continue;
                         JsonObject x = el.getAsJsonObject();
-                        String tool = x.has("tool") ? x.get("tool").getAsString() : "";
-                        JsonObject args = x.has("args") && x.get("args").isJsonObject() ? x.getAsJsonObject("args") : new JsonObject();
-                        if (!tool.isBlank()) actions.add(new AiAction(tool, args));
+                        String tool = x.has("tool")
+                                ? x.get("tool").getAsString()
+                                : "";
+                        JsonObject args = x.has("args") && x.get("args").isJsonObject()
+                                ? x.getAsJsonObject("args")
+                                : new JsonObject();
+                        if (!tool.isBlank()) {
+                            actions.add(new AiAction(tool, args));
+                        }
                     }
                 }
+
                 return new AiReply(say, actions);
             }
         } catch (Throwable ignored) {}
+
         String safe = stripHidden(content == null ? "" : content).trim();
         if (safe.length() > 180) safe = safe.substring(0, 180);
-        return new AiReply(safe.isBlank() ? "Okay." : safe, List.of());
+
+        return new AiReply(
+                safe.isBlank() ? "Okay." : safe,
+                List.of());
     }
 
     private String systemPrompt(String context) {
@@ -232,6 +370,7 @@ STATE:
 
     private static String stripHidden(String text) {
         if (text == null) return "";
+
         String out = text
                 .replaceAll("(?is)<think>.*?</think>", "")
                 .replaceAll("(?is)<analysis>.*?</analysis>", "")
@@ -244,112 +383,20 @@ STATE:
         return out;
     }
 
-    private static void addMessage(JsonArray arr, String role, String content) {
-        JsonObject m = new JsonObject();
-        m.addProperty("role", role);
-        m.addProperty("content", content);
-        arr.add(m);
+    private static void addMessage(
+            JsonArray arr,
+            String role,
+            String content
+    ) {
+        JsonObject message = new JsonObject();
+        message.addProperty("role", role);
+        message.addProperty("content", content);
+        arr.add(message);
     }
 
-    private boolean health() {
-        try {
-            HttpRequest r = HttpRequest.newBuilder()
-                    .uri(URI.create("http://127.0.0.1:" + PORT + "/health"))
-                    .timeout(Duration.ofSeconds(2)).GET().build();
-            return http.send(r, HttpResponse.BodyHandlers.discarding()).statusCode() == 200;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    private void download(String url, Path out) throws Exception {
-        Files.createDirectories(out.getParent());
-        Path tmp = out.resolveSibling(out.getFileName() + ".part");
-        long done = Files.exists(tmp) ? Files.size(tmp) : 0L;
-
-        HttpURLConnection con = (HttpURLConnection) URI.create(url).toURL().openConnection();
-        con.setInstanceFollowRedirects(true);
-        con.setConnectTimeout(15000);
-        con.setReadTimeout(45000);
-        con.setRequestProperty("User-Agent", "SURV-OS/4.0");
-        if (done > 0) con.setRequestProperty("Range", "bytes=" + done + "-");
-
-        int code = con.getResponseCode();
-        if (code >= 300 && code < 400 && con.getHeaderField("Location") != null) {
-            con.disconnect();
-            download(con.getHeaderField("Location"), out);
-            return;
-        }
-
-        if (done > 0 && code != 206) {
-            Files.deleteIfExists(tmp);
-            done = 0L;
-            con.disconnect();
-            con = (HttpURLConnection) URI.create(url).toURL().openConnection();
-            con.setInstanceFollowRedirects(true);
-            con.setConnectTimeout(15000);
-            con.setReadTimeout(45000);
-            con.setRequestProperty("User-Agent", "SURV-OS/4.0");
-            code = con.getResponseCode();
-        }
-
-        if (code < 200 || code >= 300) throw new IOException("Download HTTP " + code);
-
-        long remaining = con.getContentLengthLong();
-        long expected = remaining > 0 ? done + remaining : -1L;
-
-        try (InputStream in = con.getInputStream();
-             OutputStream os = Files.newOutputStream(
-                     tmp,
-                     StandardOpenOption.CREATE,
-                     done > 0 ? StandardOpenOption.APPEND : StandardOpenOption.TRUNCATE_EXISTING)) {
-
-            byte[] buf = new byte[1024 * 256];
-            int n;
-            while ((n = in.read(buf)) > 0) {
-                os.write(buf, 0, n);
-                done += n;
-                if (expected > 0) {
-                    downloadPercent = (int)Math.min(99, Math.round(done * 100.0 / expected));
-                    if (status.startsWith("DOWNLOADING AI"))
-                        status = "DOWNLOADING AI " + downloadPercent + "%";
-                }
-            }
-        } finally {
-            con.disconnect();
-        }
-
-        Files.move(tmp, out, StandardCopyOption.REPLACE_EXISTING);
-        downloadPercent = 100;
-    }
-
-    private static void unzip(Path zip, Path dir) throws IOException {
-        Files.createDirectories(dir);
-        try (ZipInputStream zin = new ZipInputStream(Files.newInputStream(zip))) {
-            ZipEntry e;
-            while ((e = zin.getNextEntry()) != null) {
-                if (e.isDirectory()) continue;
-                Path out = dir.resolve(e.getName()).normalize();
-                if (!out.startsWith(dir)) throw new IOException("Unsafe zip entry");
-                Files.createDirectories(out.getParent());
-                Files.copy(zin, out, StandardCopyOption.REPLACE_EXISTING);
-            }
-        }
-    }
-
-    private static Path findFile(Path root, String fileName) {
-        try (var stream = Files.walk(root, 4)) {
-            return stream.filter(Files::isRegularFile)
-                    .filter(p -> p.getFileName().toString().equalsIgnoreCase(fileName))
-                    .findFirst().orElse(null);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private static void drain(Process p) {
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
-            while (br.readLine() != null) {}
-        } catch (Exception ignored) {}
+    private static String compact(String value) {
+        if (value == null) return "";
+        String one = value.replaceAll("\\s+", " ").trim();
+        return one.length() <= 180 ? one : one.substring(0, 180);
     }
 }
