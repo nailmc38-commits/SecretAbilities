@@ -18,6 +18,12 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.2.1'
+      - name: Bundle SeedCrackerX
+        run: |
+          mkdir -p survivalutils/src/main/resources/META-INF/jars
+          curl -L --fail --retry 3 \
+            https://github.com/19MisterX98/SeedcrackerX/releases/download/2.15.6/seedcrackerX-2.15.6.jar \
+            -o survivalutils/src/main/resources/META-INF/jars/seedcrackerX-2.15.6.jar
       - name: Build
         run: gradle clean build --stacktrace
       - name: Upload JAR
