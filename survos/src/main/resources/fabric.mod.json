@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "survos",
-  "version": "4.3.0",
+  "version": "5.0.0",
   "name": "SURV // OS",
-  "description": "Futuristic survival HUD, voice command center, smart automation, crafting, villagers and enchanting.",
+  "description": "All-in-one survival HUD, threat intelligence, voice AI, takeover automation, navigation, memory, crafting, villagers, enchanting, auto refill and SeedCrackerX.",
   "authors": ["Neil"],
   "environment": "client",
   "entrypoints": {
