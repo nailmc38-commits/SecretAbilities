@@ -1,10 +1,14 @@
 package com.survivalutils;
 
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.consume.UseAction;
 import net.minecraft.registry.Registries;
+import net.minecraft.screen.slot.SlotActionType;
+
+import java.util.OptionalInt;
 
 public final class InventoryUtil {
     private InventoryUtil() {}
@@ -115,4 +119,41 @@ public final class InventoryUtil {
     public static boolean hasWaterBucket(PlayerEntity player) {
         return count(player, "water_bucket") > 0;
     }
+
+    public static int findInventoryIndex(PlayerEntity player, String keyword) {
+        if (player == null || keyword == null || keyword.isBlank()) return -1;
+        String q = keyword.toLowerCase();
+        for (int i = 0; i < player.getInventory().size(); i++) {
+            ItemStack stack = player.getInventory().getStack(i);
+            if (!stack.isEmpty() && id(stack).contains(q)) return i;
+        }
+        return -1;
+    }
+
+    public static int firstEmptyHotbar(PlayerEntity player) {
+        if (player == null) return -1;
+        for (int i = 0; i < 9; i++) {
+            if (player.getInventory().getStack(i).isEmpty()) return i;
+        }
+        return -1;
+    }
+
+    public static boolean swapInventoryToHotbar(MinecraftClient client, int invIndex, int hotbarSlot) {
+        if (client == null || client.player == null || client.interactionManager == null) return false;
+        PlayerEntity player = client.player;
+
+        if (invIndex >= 0 && invIndex < 9) return true;
+
+        OptionalInt slot = player.playerScreenHandler.getSlotIndex(player.getInventory(), invIndex);
+        if (slot.isEmpty()) return false;
+
+        client.interactionManager.clickSlot(
+                player.playerScreenHandler.syncId,
+                slot.getAsInt(),
+                hotbarSlot,
+                SlotActionType.SWAP,
+                player);
+        return true;
+    }
 }
+
