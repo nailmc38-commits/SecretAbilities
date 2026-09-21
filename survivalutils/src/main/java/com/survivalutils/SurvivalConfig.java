@@ -22,6 +22,8 @@ public final class SurvivalConfig {
     public int warningCooldownSeconds = 7;
     public boolean warningBanner = true;
     public boolean warningActionbar = true;
+    public double clutchMinFallDistance = 3.0;
+    public int clutchTriggerBlocks = 4;
 
     public SurvivalConfig() {
         resetDefaults();
@@ -85,6 +87,8 @@ public final class SurvivalConfig {
             this.warningCooldownSeconds = Math.max(2, loaded.warningCooldownSeconds);
             this.warningBanner = loaded.warningBanner;
             this.warningActionbar = loaded.warningActionbar;
+            this.clutchMinFallDistance = loaded.clutchMinFallDistance <= 0.0 ? 3.0 : loaded.clutchMinFallDistance;
+            this.clutchTriggerBlocks = Math.max(2, Math.min(4, loaded.clutchTriggerBlocks <= 0 ? 4 : loaded.clutchTriggerBlocks));
 
             for (Feature feature : Feature.values()) {
                 enabled.putIfAbsent(feature, feature.defaultEnabled);
