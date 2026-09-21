@@ -5,8 +5,11 @@ public enum Feature {
     HEALTH_HUD(Category.HUD, "Health", "Current and maximum health.", true),
     HUNGER_HUD(Category.HUD, "Hunger", "Food level.", true),
     ARMOR_HUD(Category.HUD, "Armor", "Armor points.", true),
+    ARMOR_DURABILITY_HUD(Category.HUD, "Armor Durability", "Helmet, chestplate, leggings and boots durability.", false),
     XP_HUD(Category.HUD, "XP Level", "Current experience level.", true),
     COORDS_HUD(Category.HUD, "Coordinates", "Current X Y Z.", true),
+    DIRECTION_HUD(Category.HUD, "Compass Direction", "Current facing direction.", true),
+    FALL_DISTANCE_HUD(Category.HUD, "Fall Distance", "Live fall distance and danger state.", true),
     BIOME_HUD(Category.HUD, "Biome", "Current biome.", true),
     DIMENSION_HUD(Category.HUD, "Dimension", "Current dimension.", true),
     LIGHT_HUD(Category.HUD, "Light Level", "Light level at your position.", true),
@@ -21,6 +24,8 @@ public enum Feature {
     PLAYER_RADAR(Category.HUD, "Players Nearby", "Nearby player names, distance and spectator status.", true),
     THREAT_HUD(Category.HUD, "Threat Level", "Multi-factor danger score.", true),
     READINESS_HUD(Category.HUD, "Survival Readiness", "Readiness percentage based on health, food and gear.", true),
+    NEAREST_HOSTILE_HUD(Category.HUD, "Nearest Hostile", "Nearest hostile type and distance.", true),
+    SAFE_SLEEP_HUD(Category.HUD, "Safe Sleep Status", "Shows whether sleeping is currently safe and possible.", false),
 
     STATS_PANEL(Category.STATS, "Left Stats Panel", "Master switch for the left stats panel.", true),
     SESSION_TIMER(Category.STATS, "Session Time", "Time in the current session.", true),
@@ -73,6 +78,8 @@ public enum Feature {
     DROWNING_ALERT(Category.ALERTS, "Low Air Warning", "Critical warning when air is low.", true),
     NIGHT_WARNING(Category.ALERTS, "Night Approaching", "Warn shortly before night.", true),
     THREAT_ALERT(Category.ALERTS, "High Threat Warning", "Show tactical disengage recommendations at high threat.", true),
+    LAVA_ALERT(Category.ALERTS, "Nearby Lava Warning", "Warn when lava is detected very close to you.", true),
+    FALL_ALERT(Category.ALERTS, "Dangerous Fall Warning", "Warn during dangerous falls and show clutch status.", true),
     PLAYER_PROXIMITY_ALERT(Category.ALERTS, "Player Proximity Warning", "Warn with the nearest player name and distance when someone enters your radar radius.", true);
 
     public final Category category;
