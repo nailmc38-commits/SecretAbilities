@@ -51,6 +51,7 @@ public enum Feature {
     ALTITUDE_HINT(Category.EXPLORATION, "Altitude Hint", "Contextual Y-level survival hint.", true),
     LIGHT_WARNING(Category.EXPLORATION, "Low Light Warning", "Warn in very dark areas.", true),
     SPAWN_DISTANCE(Category.EXPLORATION, "Spawn Distance", "Distance from world spawn.", false),
+    AUTO_WATER_CLUTCH(Category.EXPLORATION, "Auto Water Clutch", "When enabled, attempts a normal water-bucket clutch during dangerous falls.", false),
 
     PICKAXE_DURABILITY(Category.MINING, "Pickaxe Durability", "Show best pickaxe durability.", true),
     DIAMOND_Y_HINT(Category.MINING, "Diamond Y Hint", "Hint when in deep mining levels.", false),
@@ -71,7 +72,8 @@ public enum Feature {
     FIRE_ALERT(Category.ALERTS, "Fire Warning", "Critical warning while burning.", true),
     DROWNING_ALERT(Category.ALERTS, "Low Air Warning", "Critical warning when air is low.", true),
     NIGHT_WARNING(Category.ALERTS, "Night Approaching", "Warn shortly before night.", true),
-    THREAT_ALERT(Category.ALERTS, "High Threat Warning", "Show tactical disengage recommendations at high threat.", true);
+    THREAT_ALERT(Category.ALERTS, "High Threat Warning", "Show tactical disengage recommendations at high threat.", true),
+    PLAYER_PROXIMITY_ALERT(Category.ALERTS, "Player Proximity Warning", "Warn with the nearest player name and distance when someone enters your radar radius.", true);
 
     public final Category category;
     public final String title;
