@@ -190,7 +190,7 @@ public final class AutomationManager {
             return;
         }
 
-        if (goalCount > 0 && !goalItem.isBlank() && InventoryManager.count(p, goalItem) >= goalCount) {
+        if (goalCount > 0 && !goalItem.isBlank() && goalProgress(p) >= goalCount) {
             complete(client, "Goal reached: " + goalItem + " " + goalCount);
             return;
         }
@@ -227,6 +227,14 @@ public final class AutomationManager {
             case ROUTE -> tickRoute(client);
             default -> {}
         }
+    }
+
+    public int goalProgress(PlayerEntity p) {
+        if (p == null || goalItem == null || goalItem.isBlank()) return 0;
+        String q = WorldScanner.normalize(goalItem);
+        if (q.contains("enderman")) return InventoryManager.count(p, "ender_pearl");
+        if (q.contains("blaze")) return InventoryManager.count(p, "blaze_rod");
+        return InventoryManager.count(p, q);
     }
 
     private void tickRecovery(MinecraftClient c, SurvConfig cfg) {
