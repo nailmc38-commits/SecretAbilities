@@ -3,13 +3,16 @@
   "id": "survivalutils",
   "version": "${version}",
   "name": "Survival Utils V2",
-  "description": "No-AI survival HUD, threat intelligence, warnings, player radar and quality-of-life tools.",
+  "description": "No-AI survival HUD, threat intelligence, warnings, player radar, stats, helmet overlay, quality-of-life tools and SeedCrackerX.",
   "authors": ["Neil"],
   "license": "All Rights Reserved",
   "environment": "client",
   "entrypoints": {
     "client": ["com.survivalutils.SurvivalUtilsClient"]
   },
+  "jars": [
+    { "file": "META-INF/jars/seedcrackerX-2.15.6.jar" }
+  ],
   "depends": {
     "fabricloader": ">=0.18.4",
     "minecraft": "~1.21.11",
