@@ -257,7 +257,7 @@ public final class AutomationManager {
     private void tickMobGrind(MinecraftClient c, SurvConfig cfg) {
         PlayerEntity p = c.player;
         if (entityTarget == null || !entityTarget.isAlive() || entityTarget.distanceTo(p) > cfg.automationRange + 6) {
-            entityTarget = WorldScanner.hostile(c, cfg.automationRange, cfg);
+            entityTarget = WorldScanner.hostile(c, cfg.automationRange, cfg, goalItem);
         }
 
         if (entityTarget == null) {
@@ -267,7 +267,9 @@ public final class AutomationManager {
                 state = State.LOOTING;
             } else {
                 state = State.SEARCHING;
-                reason = "Scanning for hostiles";
+                reason = goalItem.isBlank()
+                        ? "Scanning for hostiles"
+                        : "Scanning for " + goalItem;
                 stopMovement(c);
                 return;
             }
