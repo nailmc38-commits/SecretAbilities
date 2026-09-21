@@ -14,7 +14,7 @@ public final class SurvConfig {
     public boolean hudEnabled = true;
     public boolean voiceEnabled = true;
     public boolean voiceAutoStart = true;
-    public boolean requireWakeWord = true;
+    public boolean requireWakeWord = false;
     public String wakeWord = "surv";
     public String microphone = "System Default";
     public double voiceConfidence = 0.43;
@@ -56,6 +56,9 @@ public final class SurvConfig {
     public boolean autoDeathWaypoint = true;
     public boolean showGoalRate = true;
     public String hudTheme = "CYAN";
+    public boolean memoryEnabled = true;
+    public boolean playSafety = true;
+    public boolean navigatorBreakObstacles = true;
 
     public static SurvConfig load() {
         try {
