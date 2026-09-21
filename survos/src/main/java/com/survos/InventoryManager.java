@@ -62,6 +62,25 @@ public final class InventoryManager {
         return out.toString();
     }
 
+    public static String firstId(PlayerEntity p, String query) {
+        String q = WorldScanner.normalize(query == null ? "" : query);
+        for (int i = 0; i < p.getInventory().size(); i++) {
+            ItemStack s = p.getInventory().getStack(i);
+            if (s.isEmpty()) continue;
+            String current = id(s).replace("minecraft:", "");
+            if (q.isBlank() || current.contains(q)) return current;
+        }
+        return "";
+    }
+
+    public static boolean hasAny(PlayerEntity p, String... queries) {
+        if (queries == null) return false;
+        for (String q : queries) {
+            if (count(p, q) > 0) return true;
+        }
+        return false;
+    }
+
     public static String fullSummary(PlayerEntity p) {
         java.util.LinkedHashMap<String,Integer> counts = new java.util.LinkedHashMap<>();
         for (int i = 0; i < p.getInventory().size(); i++) {
