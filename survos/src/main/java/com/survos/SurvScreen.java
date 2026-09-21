@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 public final class SurvScreen extends Screen {
-    public enum Tab { DASHBOARD, AI, TAKEOVER, AUTOMATION, TOOLS, SETTINGS }
+    public enum Tab { DASHBOARD, AI, TAKEOVER, AUTOMATION, TOOLS, HUD, REFILL, SETTINGS }
 
     private Tab tab;
     private int scrollOffset;
@@ -65,6 +65,8 @@ public final class SurvScreen extends Screen {
             case TAKEOVER -> takeover(x, y, panelW);
             case AUTOMATION -> automation(x, y, panelW);
             case TOOLS -> tools(x, y, panelW);
+            case HUD -> hud(x, y, panelW);
+            case REFILL -> refill(x, y, panelW);
             case SETTINGS -> settings(x, y, panelW);
         }
     }
@@ -360,6 +362,233 @@ public final class SurvScreen extends Screen {
                 () -> {}, false);
     }
 
+    private void hud(int x, int y, int w) {
+        int half = (w - 30) / 2;
+        int row = y;
+
+        addToggle(x + 12, row, half, "Main HUD",
+                () -> SurvOsClient.CONFIG.hudEnabled,
+                v -> SurvOsClient.CONFIG.hudEnabled = v);
+        addToggle(x + half + 18, row, half, "Main HUD right",
+                () -> SurvOsClient.CONFIG.hudRight,
+                v -> SurvOsClient.CONFIG.hudRight = v);
+        row += 34;
+
+        addToggle(x + 12, row, half, "Health",
+                () -> SurvOsClient.CONFIG.showHealth,
+                v -> SurvOsClient.CONFIG.showHealth = v);
+        addToggle(x + half + 18, row, half, "Hunger",
+                () -> SurvOsClient.CONFIG.showHunger,
+                v -> SurvOsClient.CONFIG.showHunger = v);
+        row += 34;
+
+        addToggle(x + 12, row, half, "Food count",
+                () -> SurvOsClient.CONFIG.showFoodCount,
+                v -> SurvOsClient.CONFIG.showFoodCount = v);
+        addToggle(x + half + 18, row, half, "Armor",
+                () -> SurvOsClient.CONFIG.showArmor,
+                v -> SurvOsClient.CONFIG.showArmor = v);
+        row += 34;
+
+        addToggle(x + 12, row, half, "XP",
+                () -> SurvOsClient.CONFIG.showXp,
+                v -> SurvOsClient.CONFIG.showXp = v);
+        addToggle(x + half + 18, row, half, "Coordinates",
+                () -> SurvOsClient.CONFIG.showCoords,
+                v -> SurvOsClient.CONFIG.showCoords = v);
+        row += 34;
+
+        addToggle(x + 12, row, half, "Dimension",
+                () -> SurvOsClient.CONFIG.showDimension,
+                v -> SurvOsClient.CONFIG.showDimension = v);
+        addToggle(x + half + 18, row, half, "Biome",
+                () -> SurvOsClient.CONFIG.showBiome,
+                v -> SurvOsClient.CONFIG.showBiome = v);
+        row += 34;
+
+        addToggle(x + 12, row, half, "Light",
+                () -> SurvOsClient.CONFIG.showLight,
+                v -> SurvOsClient.CONFIG.showLight = v);
+        addToggle(x + half + 18, row, half, "Day / night",
+                () -> SurvOsClient.CONFIG.showDayNight,
+                v -> SurvOsClient.CONFIG.showDayNight = v);
+        row += 34;
+
+        addToggle(x + 12, row, half, "Weather",
+                () -> SurvOsClient.CONFIG.showWeather,
+                v -> SurvOsClient.CONFIG.showWeather = v);
+        addToggle(x + half + 18, row, half, "Effects",
+                () -> SurvOsClient.CONFIG.showEffects,
+                v -> SurvOsClient.CONFIG.showEffects = v);
+        row += 34;
+
+        addToggle(x + 12, row, half, "Held item",
+                () -> SurvOsClient.CONFIG.showHeldItem,
+                v -> SurvOsClient.CONFIG.showHeldItem = v);
+        addToggle(x + half + 18, row, half, "Durability",
+                () -> SurvOsClient.CONFIG.showDurability,
+                v -> SurvOsClient.CONFIG.showDurability = v);
+        row += 34;
+
+        addToggle(x + 12, row, half, "Inventory free",
+                () -> SurvOsClient.CONFIG.showInventory,
+                v -> SurvOsClient.CONFIG.showInventory = v);
+        addToggle(x + half + 18, row, half, "Totems",
+                () -> SurvOsClient.CONFIG.showTotems,
+                v -> SurvOsClient.CONFIG.showTotems = v);
+        row += 34;
+
+        addToggle(x + 12, row, half, "Arrows",
+                () -> SurvOsClient.CONFIG.showArrows,
+                v -> SurvOsClient.CONFIG.showArrows = v);
+        addToggle(x + half + 18, row, half, "Threats",
+                () -> SurvOsClient.CONFIG.showHostiles,
+                v -> SurvOsClient.CONFIG.showHostiles = v);
+        row += 34;
+
+        addToggle(x + 12, row, half, "Nearby players",
+                () -> SurvOsClient.CONFIG.showNearbyPlayers,
+                v -> SurvOsClient.CONFIG.showNearbyPlayers = v);
+        addToggle(x + half + 18, row, half, "FPS",
+                () -> SurvOsClient.CONFIG.showFps,
+                v -> SurvOsClient.CONFIG.showFps = v);
+        row += 34;
+
+        addToggle(x + 12, row, half, "Ping",
+                () -> SurvOsClient.CONFIG.showPing,
+                v -> SurvOsClient.CONFIG.showPing = v);
+        addToggle(x + half + 18, row, half, "Automation",
+                () -> SurvOsClient.CONFIG.showAutomation,
+                v -> SurvOsClient.CONFIG.showAutomation = v);
+        row += 34;
+
+        addToggle(x + 12, row, half, "Voice / AI",
+                () -> SurvOsClient.CONFIG.showVoice,
+                v -> SurvOsClient.CONFIG.showVoice = v);
+        addToggle(x + half + 18, row, half, "Memory",
+                () -> SurvOsClient.CONFIG.showMemory,
+                v -> SurvOsClient.CONFIG.showMemory = v);
+        row += 42;
+
+        addScrollingButton(x + 12, row, w - 24, "LEFT STATS HUD", () -> {}, true);
+        row += 34;
+
+        addToggle(x + 12, row, half, "Stats HUD",
+                () -> SurvOsClient.CONFIG.statsHudEnabled,
+                v -> SurvOsClient.CONFIG.statsHudEnabled = v);
+        addToggle(x + half + 18, row, half, "Session time",
+                () -> SurvOsClient.CONFIG.statsShowSessionTime,
+                v -> SurvOsClient.CONFIG.statsShowSessionTime = v);
+        row += 34;
+
+        addToggle(x + 12, row, half, "Distance",
+                () -> SurvOsClient.CONFIG.statsShowDistance,
+                v -> SurvOsClient.CONFIG.statsShowDistance = v);
+        addToggle(x + half + 18, row, half, "Blocks mined",
+                () -> SurvOsClient.CONFIG.statsShowBlocksMined,
+                v -> SurvOsClient.CONFIG.statsShowBlocksMined = v);
+        row += 34;
+
+        addToggle(x + 12, row, half, "Mob hits",
+                () -> SurvOsClient.CONFIG.statsShowMobHits,
+                v -> SurvOsClient.CONFIG.statsShowMobHits = v);
+        addToggle(x + half + 18, row, half, "Task",
+                () -> SurvOsClient.CONFIG.statsShowCurrentTask,
+                v -> SurvOsClient.CONFIG.statsShowCurrentTask = v);
+        row += 34;
+
+        addToggle(x + 12, row, half, "Goal rate / ETA",
+                () -> SurvOsClient.CONFIG.statsShowGoalRate,
+                v -> SurvOsClient.CONFIG.statsShowGoalRate = v);
+        addToggle(x + half + 18, row, half, "Free slots",
+                () -> SurvOsClient.CONFIG.statsShowInventoryFree,
+                v -> SurvOsClient.CONFIG.statsShowInventoryFree = v);
+        row += 34;
+
+        addToggle(x + 12, row, half, "PLAY phase",
+                () -> SurvOsClient.CONFIG.statsShowPlayPhase,
+                v -> SurvOsClient.CONFIG.statsShowPlayPhase = v);
+        row += 42;
+
+        addScrollingButton(x + 12, row, w - 24, "HELMET HUD  //  only while helmet equipped", () -> {}, true);
+        row += 34;
+
+        addToggle(x + 12, row, half, "Helmet HUD",
+                () -> SurvOsClient.CONFIG.helmetHudEnabled,
+                v -> SurvOsClient.CONFIG.helmetHudEnabled = v);
+        addToggle(x + half + 18, row, half, "Helmet info",
+                () -> SurvOsClient.CONFIG.helmetShowHelmet,
+                v -> SurvOsClient.CONFIG.helmetShowHelmet = v);
+        row += 34;
+
+        addToggle(x + 12, row, half, "Helmet threat scan",
+                () -> SurvOsClient.CONFIG.helmetShowThreat,
+                v -> SurvOsClient.CONFIG.helmetShowThreat = v);
+        addToggle(x + half + 18, row, half, "Helmet coords",
+                () -> SurvOsClient.CONFIG.helmetShowCoords,
+                v -> SurvOsClient.CONFIG.helmetShowCoords = v);
+        row += 34;
+
+        addToggle(x + 12, row, half, "Helmet task",
+                () -> SurvOsClient.CONFIG.helmetShowTask,
+                v -> SurvOsClient.CONFIG.helmetShowTask = v);
+        addToggle(x + half + 18, row, half, "Helmet durability",
+                () -> SurvOsClient.CONFIG.helmetShowDurability,
+                v -> SurvOsClient.CONFIG.helmetShowDurability = v);
+        row += 34;
+
+        addToggle(x + 12, row, half, "Helmet voice link",
+                () -> SurvOsClient.CONFIG.helmetShowVoice,
+                v -> SurvOsClient.CONFIG.helmetShowVoice = v);
+        addToggle(x + half + 18, row, half, "Helmet time",
+                () -> SurvOsClient.CONFIG.helmetShowTime,
+                v -> SurvOsClient.CONFIG.helmetShowTime = v);
+    }
+
+    private void refill(int x, int y, int w) {
+        int half = (w - 30) / 2;
+        int row = y;
+
+        addToggle(x + 12, row, w - 24, "AUTO REFILL MASTER",
+                () -> SurvOsClient.CONFIG.autoHotbar,
+                v -> SurvOsClient.CONFIG.autoHotbar = v);
+        row += 42;
+
+        SurvOsClient.CONFIG.sanitize();
+
+        for (int slot = 0; slot < 9; slot++) {
+            final int i = slot;
+            addToggle(x + 12, row, half, "Slot " + (slot + 1) + " refill",
+                    () -> SurvOsClient.CONFIG.autoRefillSlots[i],
+                    v -> SurvOsClient.CONFIG.autoRefillSlots[i] = v);
+
+            TextFieldWidget item = scrollingField(
+                    x + half + 18,
+                    row,
+                    half,
+                    "item keyword",
+                    SurvOsClient.CONFIG.autoRefillItems[i]);
+
+            if (item != null) {
+                item.setChangedListener(v -> {
+                    SurvOsClient.CONFIG.autoRefillItems[i] = v.trim();
+                    SurvOsClient.CONFIG.save();
+                });
+            }
+
+            row += 34;
+        }
+
+        row += 8;
+        addScrollingButton(
+                x + 12,
+                row,
+                w - 24,
+                "SAFE MODE // only fills EMPTY enabled slots — never replaces your item",
+                () -> {},
+                true);
+    }
+
     private void settings(int x, int y, int w) {
         int half = (w - 30) / 2;
 
@@ -544,6 +773,8 @@ public final class SurvScreen extends Screen {
         int viewport = Math.max(120, contentBottom - CONTENT_TOP - 8);
         int content = switch (tab) {
             case SETTINGS -> 620;
+            case HUD -> 980;
+            case REFILL -> 380;
             case AI -> 350;
             case TAKEOVER -> 350;
             case AUTOMATION -> 320;
@@ -597,6 +828,8 @@ public final class SurvScreen extends Screen {
             case TAKEOVER -> "TAKE OVER";
             case AUTOMATION -> "AUTOMATION + NAVIGATION";
             case TOOLS -> "SURVIVAL TOOLS";
+            case HUD -> "HUD MODULES  •  THREE LAYERS";
+            case REFILL -> "AUTO REFILL  •  SLOT BY SLOT";
             case SETTINGS -> "SETTINGS  •  SCROLL FOR MORE";
         };
         ctx.drawTextWithShadow(textRenderer, title, left + 14, CONTENT_TOP - 3, 0xFF9FB4C0);
