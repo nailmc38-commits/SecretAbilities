@@ -3,7 +3,7 @@
   "id": "survivalutils",
   "version": "${version}",
   "name": "Survival Utils V2",
-  "description": "No-AI survival HUD, threat intelligence, warnings, player radar, stats, helmet overlay, quality-of-life tools and SeedCrackerX.",
+  "description": "No-AI survival HUD, threat intelligence, player radar, spectator alerts, camera-free auto water clutch, stats, helmet overlay, quality-of-life tools and SeedCrackerX.",
   "authors": ["Neil"],
   "license": "All Rights Reserved",
   "environment": "client",
