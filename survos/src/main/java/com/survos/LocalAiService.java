@@ -23,7 +23,6 @@ public final class LocalAiService {
             .connectTimeout(Duration.ofSeconds(2))
             .build();
     private final AtomicBoolean detecting = new AtomicBoolean();
-    private final Deque<Turn> history = new ArrayDeque<>();
 
     private volatile Backend backend = Backend.NONE;
     private volatile String baseUrl = "";
@@ -112,14 +111,25 @@ public final class LocalAiService {
                 };
 
                 AiReply parsed = parseReply(stripHidden(content));
-                lastReply = parsed.say();
 
-                synchronized (history) {
-                    history.addLast(new Turn("user", compact(user)));
-                    history.addLast(new Turn("assistant", compact(parsed.say())));
-                    while (history.size() > 6) history.removeFirst();
+                if (isGenericResetReply(parsed.say(), user)) {
+                    String retry = switch (backend) {
+                        case OLLAMA -> askOllamaCorrected(user, gameContext);
+                        case LM_STUDIO, OPENAI_LOCAL -> askOpenAiCorrected(user, gameContext);
+                        default -> "";
+                    };
+                    AiReply retried = parseReply(stripHidden(retry));
+                    if (!isGenericResetReply(retried.say(), user)) {
+                        parsed = retried;
+                    } else {
+                        parsed = new AiReply(
+                                "I heard you. I'm staying on the current task instead of resetting the conversation.",
+                                retried.actions()
+                        );
+                    }
                 }
 
+                lastReply = parsed.say();
                 callback.accept(parsed);
             } catch (Throwable t) {
                 ready = false;
@@ -202,17 +212,78 @@ public final class LocalAiService {
         return root.getAsJsonObject("message").get("content").getAsString();
     }
 
+    private String askOpenAiCorrected(String user, String gameContext) throws Exception {
+        JsonObject req = new JsonObject();
+        req.addProperty("model", model);
+        req.addProperty("temperature", 0.10);
+        req.addProperty("top_p", 0.80);
+        req.addProperty("max_tokens", 130);
+        req.addProperty("stream", false);
+        req.add("messages", buildCorrectedMessages(user, gameContext));
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl + "/chat/completions"))
+                .timeout(Duration.ofSeconds(18))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(
+                        GSON.toJson(req), StandardCharsets.UTF_8))
+                .build();
+
+        HttpResponse<String> response = http.send(
+                request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        if (response.statusCode() < 200 || response.statusCode() >= 300)
+            throw new IllegalStateException("HTTP " + response.statusCode());
+
+        JsonObject root = JsonParser.parseString(response.body()).getAsJsonObject();
+        return root.getAsJsonArray("choices").get(0).getAsJsonObject()
+                .getAsJsonObject("message").get("content").getAsString();
+    }
+
+    private String askOllamaCorrected(String user, String gameContext) throws Exception {
+        JsonObject req = new JsonObject();
+        req.addProperty("model", model);
+        req.addProperty("stream", false);
+        req.add("messages", buildCorrectedMessages(user, gameContext));
+
+        JsonObject options = new JsonObject();
+        options.addProperty("temperature", 0.10);
+        options.addProperty("num_predict", 130);
+        req.add("options", options);
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl + "/api/chat"))
+                .timeout(Duration.ofSeconds(18))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(
+                        GSON.toJson(req), StandardCharsets.UTF_8))
+                .build();
+
+        HttpResponse<String> response = http.send(
+                request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        if (response.statusCode() < 200 || response.statusCode() >= 300)
+            throw new IllegalStateException("HTTP " + response.statusCode());
+
+        JsonObject root = JsonParser.parseString(response.body()).getAsJsonObject();
+        return root.getAsJsonObject("message").get("content").getAsString();
+    }
+
     private JsonArray buildMessages(String user, String gameContext) {
         JsonArray messages = new JsonArray();
         addMessage(messages, "system", systemPrompt(gameContext));
+        addMessage(messages, "user",
+                "CURRENT REQUEST — answer or perform this now. Do not greet or introduce yourself:\n"
+                        + user + "\n/no_think");
+        return messages;
+    }
 
-        synchronized (history) {
-            for (Turn t : history) {
-                addMessage(messages, t.role(), t.text());
-            }
-        }
-
-        addMessage(messages, "user", user + "\n/no_think");
+    private JsonArray buildCorrectedMessages(String user, String gameContext) {
+        JsonArray messages = new JsonArray();
+        addMessage(messages, "system", systemPrompt(gameContext)
+                + "\nCRITICAL: Your previous reply incorrectly reset into a generic greeting. "
+                + "Do not say hello, ready to assist, how can I help, or introduce yourself. "
+                + "Respond to the current Minecraft request and use tools when an action was requested.");
+        addMessage(messages, "user",
+                "RETRY THE CURRENT REQUEST EXACTLY:\n" + user + "\n/no_think");
         return messages;
     }
 
@@ -241,8 +312,20 @@ public final class LocalAiService {
 
             if (data.isEmpty()) return false;
 
-            JsonObject first = data.get(0).getAsJsonObject();
-            String id = first.has("id") ? first.get("id").getAsString() : "";
+            String id = "";
+            for (JsonElement el : data) {
+                if (!el.isJsonObject()) continue;
+                JsonObject candidate = el.getAsJsonObject();
+                String current = candidate.has("id") ? candidate.get("id").getAsString() : "";
+                String lower = current.toLowerCase(Locale.ROOT);
+                if (current.isBlank() || lower.contains("embed")) continue;
+                if (id.isBlank()) id = current;
+                if (lower.contains("qwen") || lower.contains("llama")
+                        || lower.contains("mistral") || lower.contains("gemma")) {
+                    id = current;
+                    break;
+                }
+            }
             if (id.isBlank()) return false;
 
             backend = candidateBackend;
@@ -341,6 +424,8 @@ public final class LocalAiService {
         return """
 You are SURV, a fast local Minecraft assistant. /no_think.
 Be natural, calm, concise and useful. Never output reasoning, analysis, chain-of-thought, hidden thoughts, or planning narration.
+NEVER introduce yourself, say you are ready to assist, say how can I help, or reset into a greeting unless the user's current message is actually a greeting.
+The CURRENT REQUEST is always the highest priority. Continue the existing Minecraft context and memory instead of resetting.
 Speak in one short sentence unless the user asks for details.
 Return ONLY JSON: {"say":"short reply","actions":[{"tool":"name","args":{}}]}
 
@@ -366,6 +451,29 @@ No anti-cheat bypass, hidden/x-ray knowledge, admin/server commands, or OS comma
 
 STATE:
 """ + context;
+    }
+
+    private static boolean isGenericResetReply(String reply, String user) {
+        if (reply == null) return true;
+        String r = reply.toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9 ]+", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+        String u = user == null ? "" : user.toLowerCase(Locale.ROOT).trim();
+
+        boolean userGreeting = u.matches("^(hi|hello|hey|yo|sup|what'?s up)[!. ]*$");
+        if (userGreeting) return false;
+
+        return r.startsWith("hello i am")
+                || r.startsWith("hello i'm")
+                || r.startsWith("hi i am")
+                || r.startsWith("hi i'm")
+                || r.contains("ready to assist")
+                || r.contains("ready to help")
+                || r.contains("how can i assist")
+                || r.contains("how may i assist")
+                || r.contains("how can i help you")
+                || r.contains("what can i help you with");
     }
 
     private static String stripHidden(String text) {
