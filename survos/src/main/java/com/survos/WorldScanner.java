@@ -28,6 +28,67 @@ public final class WorldScanner {
         });
     }
 
+    public static BlockPos visibleBlock(MinecraftClient c, int r, int vertical, String filter) {
+        String q = normalize(filter == null ? "" : filter);
+        return nearestBlock(c,r,vertical,(s,p)->{
+            if(s.isAir()) return false;
+            String id=Registries.BLOCK.getId(s.getBlock()).getPath();
+            if(!q.isBlank() && !matchesResource(id,q)) return false;
+            return exposed(c,p);
+        });
+    }
+
+    public static String nearbySummary(MinecraftClient c, int r) {
+        if (c.player==null||c.world==null) return "none";
+        BlockPos base=new BlockPos(c.player.getBlockX(),c.player.getBlockY(),c.player.getBlockZ());
+        java.util.LinkedHashMap<String,Integer> counts=new java.util.LinkedHashMap<>();
+
+        for(int y=-5;y<=5;y++) for(int x=-r;x<=r;x++) for(int z=-r;z<=r;z++){
+            BlockPos p=base.add(x,y,z);
+            BlockState s=c.world.getBlockState(p);
+            if(s.isAir()) continue;
+            String id=Registries.BLOCK.getId(s.getBlock()).getPath();
+
+            boolean important=id.endsWith("_ore")
+                    || id.equals("ancient_debris")
+                    || id.contains("log")
+                    || id.contains("stem")
+                    || id.contains("obsidian")
+                    || id.contains("portal")
+                    || id.contains("crafting_table")
+                    || id.contains("furnace")
+                    || id.contains("chest")
+                    || id.contains("bed")
+                    || id.contains("spawner")
+                    || id.contains("water")
+                    || id.contains("lava");
+
+            if(important && exposed(c,p)) counts.merge(id,1,Integer::sum);
+        }
+
+        if(counts.isEmpty()) return "none";
+        StringBuilder out=new StringBuilder();
+        int n=0;
+        for(var e:counts.entrySet()){
+            if(n++>=14) break;
+            if(!out.isEmpty()) out.append(", ");
+            out.append(e.getKey()).append(" x").append(e.getValue());
+        }
+        return out.toString();
+    }
+
+    private static boolean matchesResource(String id,String q){
+        if(id.contains(q)) return true;
+        if(q.equals("stone") && (id.equals("stone")||id.equals("cobblestone")||id.contains("deepslate"))) return true;
+        if(q.equals("wood") && (id.endsWith("_log")||id.endsWith("_stem")||id.endsWith("_hyphae"))) return true;
+        if(q.equals("log") && (id.endsWith("_log")||id.endsWith("_stem")||id.endsWith("_hyphae"))) return true;
+        if(q.equals("iron") && id.contains("iron_ore")) return true;
+        if(q.equals("gold") && id.contains("gold_ore")) return true;
+        if(q.equals("diamond") && id.contains("diamond_ore")) return true;
+        if(q.equals("coal") && id.contains("coal_ore")) return true;
+        return false;
+    }
+
     public static BlockPos log(MinecraftClient c, int r) {
         return nearestBlock(c,r,8,(s,p)->{
             String id=Registries.BLOCK.getId(s.getBlock()).getPath();
