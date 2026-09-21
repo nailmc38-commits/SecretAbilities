@@ -953,6 +953,7 @@ public final class SurvScreen extends Screen {
             case TAKEOVER -> 350;
             case AUTOMATION -> 320;
             case TOOLS -> 540;
+            case LOADOUTS -> 420;
             case DASHBOARD -> 260;
         };
         return Math.max(0, content - viewport);
