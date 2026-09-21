@@ -188,11 +188,11 @@ public final class ThreatAnalyzer {
         int readiness = readiness(client);
 
         String recommendation = switch (level) {
-            case CRITICAL -> "Disengage, heal, shield or create distance";
-            case HIGH -> "Prepare combat gear and avoid getting surrounded";
-            case ELEVATED -> "Stay alert and keep an escape route";
-            case GUARDED -> "Monitor nearby threats";
-            case CLEAR -> "Area looks stable";
+            case CRITICAL -> "I recommend disengaging immediately. Heal, shield, or create distance.";
+            case HIGH -> "I recommend disengaging if you cannot control the fight. Avoid getting surrounded.";
+            case ELEVATED -> "I recommend staying alert and keeping an escape route.";
+            case GUARDED -> "I recommend monitoring nearby threats.";
+            case CLEAR -> "Area looks stable.";
         };
 
         return new Snapshot(
