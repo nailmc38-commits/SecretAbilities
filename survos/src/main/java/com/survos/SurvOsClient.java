@@ -20,6 +20,7 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.GameMode;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.*;
@@ -50,6 +51,7 @@ public final class SurvOsClient implements ClientModInitializer {
     private static String lastAliveDimension = "";
     private static boolean deathWaypointSaved;
     private static final ArrayDeque<String> COMMAND_HISTORY = new ArrayDeque<>();
+    private static final Map<String, Long> SPECTATOR_WARN_COOLDOWN = new HashMap<>();
 
     @Override
     public void onInitializeClient() {
@@ -198,6 +200,29 @@ public final class SurvOsClient implements ClientModInitializer {
         ).size();
         if (hostile >= 4 && client.player.getHealth() <= 12f) {
             speakAlert("Multiple hostiles nearby. I recommend disengaging.");
+        }
+
+        if (CONFIG.spectatorWarnings && client.getNetworkHandler() != null) {
+            String self = client.player.getGameProfile().getName();
+            long now = System.currentTimeMillis();
+
+            for (var entry : client.getNetworkHandler().getPlayerList()) {
+                if (entry.getGameMode() != GameMode.SPECTATOR) continue;
+
+                String name = entry.getProfile().getName();
+                if (name == null || name.equalsIgnoreCase(self)) continue;
+
+                long nextAllowed = SPECTATOR_WARN_COOLDOWN.getOrDefault(name, 0L);
+                if (now < nextAllowed) continue;
+
+                SPECTATOR_WARN_COOLDOWN.put(name, now + 30_000L);
+
+                String warning = "WARNING // " + name + " is in spectator.";
+                notice(warning);
+                speakAlert("Warning. " + name + " is in spectator mode.");
+            }
+
+            SPECTATOR_WARN_COOLDOWN.entrySet().removeIf(e -> e.getValue() + 120_000L < now);
         }
     }
 
