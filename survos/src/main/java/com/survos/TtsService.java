@@ -149,14 +149,28 @@ public final class TtsService {
                 Speech speech = queue.take();
                 if (!enabled) continue;
 
-                while (enabled && !ready) {
+                int waits = 0;
+                while (enabled && !ready && waits++ < 15) {
                     ensureReady();
-                    Thread.sleep(150);
+                    Thread.sleep(100);
                     if ("VOICE ERROR".equals(status)) break;
                 }
 
-                if (!enabled || !ready || tts == null) continue;
-                generateAndPlay(speech);
+                if (!enabled) continue;
+
+                if (!ready || tts == null) {
+                    speakWindowsFallback(speech.text());
+                    continue;
+                }
+
+                try {
+                    generateAndPlay(speech);
+                } catch (Throwable neuralError) {
+                    ready = false;
+                    status = "VOICE FALLBACK";
+                    speakWindowsFallback(speech.text());
+                    ensureReady();
+                }
             } catch (InterruptedException ignored) {
             } catch (Throwable t) {
                 status = ready ? "READY" : "VOICE ERROR";
@@ -233,6 +247,31 @@ public final class TtsService {
         line.stop();
         line.close();
         activeLine = null;
+    }
+
+    private void speakWindowsFallback(String text) {
+        try {
+            if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")) {
+                status = "VOICE ERROR";
+                return;
+            }
+            status = "SPEAKING";
+            String script = "Add-Type -AssemblyName System.Speech; " +
+                    "$t=[Console]::In.ReadToEnd(); " +
+                    "$s=New-Object System.Speech.Synthesis.SpeechSynthesizer; " +
+                    "try {$s.SelectVoiceByHints([System.Speech.Synthesis.VoiceGender]::Male,[System.Speech.Synthesis.VoiceAge]::Adult)} catch {}; " +
+                    "$s.Rate=0; $s.Volume=92; $s.Speak($t)";
+            Process p = new ProcessBuilder(
+                    "powershell.exe","-NoProfile","-ExecutionPolicy","Bypass","-Command",script)
+                    .redirectErrorStream(true).start();
+            try (OutputStream out = p.getOutputStream()) {
+                out.write(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+            p.waitFor();
+            status = ready ? "READY" : "VOICE FALLBACK";
+        } catch (Throwable ignored) {
+            status = "VOICE ERROR";
+        }
     }
 
     private static String sanitize(String text) {
