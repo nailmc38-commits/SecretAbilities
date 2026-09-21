@@ -60,7 +60,7 @@ public final class AutoWaterClutch {
             return;
         }
 
-        if (player.isFallFlying() || player.getAbilities().flying) {
+        if (player.isGliding() || player.getAbilities().flying) {
             status = "STANDBY";
             return;
         }
