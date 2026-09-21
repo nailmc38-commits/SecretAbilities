@@ -25,6 +25,7 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
     public static final SurvivalConfig CONFIG = new SurvivalConfig();
     public static final SurvivalStats STATS = new SurvivalStats();
     public static final WarningManager WARNINGS = new WarningManager();
+    public static final AutoWaterClutch AUTO_CLUTCH = new AutoWaterClutch();
 
     private static KeyBinding menuKey;
 
@@ -60,6 +61,7 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
         }
 
         STATS.tick(client);
+        AUTO_CLUTCH.tick(client);
         WARNINGS.tick(client);
     }
 
@@ -287,6 +289,17 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
 
         if (CONFIG.isEnabled(Feature.WATER_BUCKET_ALERT) && !InventoryUtil.hasWaterBucket(p)) {
             lines.add(new Line("WATER BUCKET none", 0xFF8ACBFF));
+        }
+
+        if (CONFIG.isEnabled(Feature.AUTO_WATER_CLUTCH)) {
+            String clutch = AUTO_CLUTCH.status();
+            int clutchColor = switch (clutch) {
+                case "ARMED" -> 0xFF79F2B1;
+                case "TRIGGERING" -> 0xFF62E8FF;
+                case "NO WATER" -> 0xFFFF6B6B;
+                default -> 0xFF9FB4C0;
+            };
+            lines.add(new Line("CLUTCH " + clutch, clutchColor));
         }
 
         if (CONFIG.isEnabled(Feature.SHIELD_DURABILITY)) {
