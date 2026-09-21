@@ -128,6 +128,14 @@ public final class SurvivalUtilsScreen extends Screen {
                 });
 
         y = settingButton(x, y, contentWidth,
+                "Water clutch trigger: " + SurvivalUtilsClient.CONFIG.clutchTriggerBlocks + " blocks",
+                () -> {
+                    int r = SurvivalUtilsClient.CONFIG.clutchTriggerBlocks;
+                    SurvivalUtilsClient.CONFIG.clutchTriggerBlocks = r <= 2 ? 3 : r == 3 ? 4 : 2;
+                    SurvivalUtilsClient.CONFIG.save();
+                });
+
+        y = settingButton(x, y, contentWidth,
                 "Warning cooldown: " + SurvivalUtilsClient.CONFIG.warningCooldownSeconds + "s",
                 () -> {
                     int r = SurvivalUtilsClient.CONFIG.warningCooldownSeconds;
@@ -187,7 +195,7 @@ public final class SurvivalUtilsScreen extends Screen {
 
     private int maxScroll() {
         if (category == Feature.Category.SETTINGS) {
-            int contentHeight = 10 * 32 + 40;
+            int contentHeight = 11 * 32 + 40;
             return Math.max(0, contentHeight - (contentBottom - contentTop));
         }
 
