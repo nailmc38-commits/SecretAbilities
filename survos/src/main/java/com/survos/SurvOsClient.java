@@ -35,6 +35,8 @@ public final class SurvOsClient implements ClientModInitializer {
     public static final RuleEngine RULES = new RuleEngine();
     public static final StatsTracker STATS = new StatsTracker();
     public static final PlayerControlService CONTROL = new PlayerControlService();
+    public static final ConversationMemory CHAT_MEMORY = new ConversationMemory();
+    public static final PlayController PLAY = new PlayController();
 
     private static KeyBinding menuKey, voiceKey, emergencyKey;
     private static long armedUntil;
@@ -127,10 +129,11 @@ public final class SurvOsClient implements ClientModInitializer {
         }
 
         while (emergencyKey.wasPressed()) {
+            if (PLAY.enabled()) PLAY.stop(client);
             AUTOMATION.stop(client, "Emergency stop");
             CONTROL.stop(client);
             TTS.stopAll();
-            TTS.speak("Stopped.", "TACTICAL");
+            TTS.speak("Stopped. You have control.", "TACTICAL");
         }
 
         LEGACY.tick(client);
@@ -149,6 +152,7 @@ public final class SurvOsClient implements ClientModInitializer {
             return;
         }
         MEMORY.tick(client);
+        CHAT_MEMORY.tick(client);
         STATS.tick(client);
         handleDimensionProfile(client);
         handleDeathMemory(client);
@@ -161,6 +165,7 @@ public final class SurvOsClient implements ClientModInitializer {
             CONTROL.tick(client);
         }
 
+        PLAY.tick(client, CONFIG);
         AUTOMATION.tick(client, CONFIG);
 
         if (CONFIG.smartAlerts && ticks % 80 == 0) {
@@ -228,11 +233,22 @@ public final class SurvOsClient implements ClientModInitializer {
             return;
         }
 
-        if (containsAny(q, "stop", "cancel everything", "stop everything", "cancel automation")) {
+        if (containsAny(q, "stop", "cancel everything", "stop everything", "cancel automation", "give me control")) {
+            if (PLAY.enabled()) PLAY.stop(client);
             AUTOMATION.stop(client, "Voice command");
             CONTROL.stop(client);
             TTS.stopAll();
-            TTS.speak("Stopped.", "TACTICAL");
+            TTS.speak("Stopped. You have control.", "TACTICAL");
+            return;
+        }
+
+        if (containsAny(q, "play the game", "play for me", "take over", "autopilot")) {
+            PLAY.start(client);
+            return;
+        }
+
+        if (containsAny(q, "stop playing", "turn off play mode")) {
+            PLAY.stop(client);
             return;
         }
 
@@ -249,10 +265,11 @@ public final class SurvOsClient implements ClientModInitializer {
         }
 
         if (containsAny(q, "emergency", "abort")) {
+            if (PLAY.enabled()) PLAY.stop(client);
             AUTOMATION.stop(client, "Voice abort");
             CONTROL.stop(client);
             TTS.stopAll();
-            TTS.speak("All automation aborted.", "TACTICAL");
+            TTS.speak("All control released.", "TACTICAL");
             return;
         }
 
@@ -263,6 +280,7 @@ public final class SurvOsClient implements ClientModInitializer {
         MinecraftClient client = MinecraftClient.getInstance();
         if (userText == null || userText.isBlank()) return;
         rememberCommand(userText);
+        if (CONFIG.memoryEnabled) CHAT_MEMORY.addTurn("user", userText);
 
         if (!CONFIG.aiEnabled) {
             notice("Local AI is disabled.");
@@ -282,6 +300,10 @@ public final class SurvOsClient implements ClientModInitializer {
         }
 
         String context = buildGameContext(client);
+        if (CONFIG.memoryEnabled) {
+            String memory = CHAT_MEMORY.context();
+            if (!memory.isBlank()) context += "\n" + memory;
+        }
         AI.ask(userText, context, reply -> client.execute(() -> {
             List<String> toolResults = new ArrayList<>();
             for (LocalAiService.AiAction action : reply.actions()) {
@@ -290,6 +312,7 @@ public final class SurvOsClient implements ClientModInitializer {
             }
 
             String say = naturalizeReply(reply.say(), reply.actions(), toolResults);
+            if (CONFIG.memoryEnabled) CHAT_MEMORY.addTurn("assistant", say);
             notice("AI // " + say);
 
             if (CONFIG.aiSpeakReplies && CONFIG.ttsEnabled) {
@@ -376,6 +399,9 @@ state=%s
 reason=%s
 goal=%s %d
 queued_tasks=%d
+play_mode=%s
+play_phase=%s
+play_status=%s
 
 Rules:
 %s
@@ -407,6 +433,9 @@ Session:
                 AUTOMATION.goalItem(),
                 AUTOMATION.goalCount(),
                 AUTOMATION.queuedTasks(),
+                PLAY.enabled(),
+                PLAY.phase(),
+                PLAY.status(),
                 RULES.all(),
                 MEMORY.waypointNames(),
                 MEMORY.routeNames(),
@@ -477,12 +506,13 @@ Session:
     public static String statusLine(MinecraftClient client) {
         if (client.player == null) return "No player";
         return String.format(
-                "HP %.1f | Food %d | Armor %d | XP %d | %s | AI %s",
+                "HP %.1f | Food %d | Armor %d | XP %d | %s | PLAY %s | AI %s",
                 client.player.getHealth(),
                 client.player.getHungerManager().getFoodLevel(),
                 client.player.getArmor(),
                 client.player.experienceLevel,
                 AUTOMATION.mode(),
+                PLAY.enabled() ? PLAY.phase() : "OFF",
                 AI.status()
         );
     }
@@ -569,6 +599,10 @@ Session:
                 threatColor = 0xFFFFE27A;
             }
             lines.add(new Line("THREAT " + threat, threatColor));
+        }
+
+        if (PLAY.enabled()) {
+            lines.add(new Line("PLAY " + PLAY.phase() + " // " + PLAY.status(), 0xFFFFD76A));
         }
 
         if (CONFIG.showAutomation) {
