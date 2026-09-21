@@ -3,7 +3,9 @@ package com.survivalutils;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.mob.CreeperEntity;
 import net.minecraft.entity.mob.SkeletonEntity;
+import net.minecraft.registry.tag.FluidTags;
 import net.minecraft.text.Text;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.Formatting;
 import net.minecraft.world.GameMode;
 
@@ -45,6 +47,25 @@ public final class WarningManager {
 
         if (cfg.isEnabled(Feature.DROWNING_ALERT) && p.getAir() < 80) {
             push(client, "air", "WARNING // AIR CRITICAL // I recommend surfacing immediately.", Severity.DANGER);
+            return;
+        }
+
+        if (cfg.isEnabled(Feature.FALL_ALERT)
+                && p.fallDistance >= 8f
+                && p.getVelocity().y < -0.45) {
+            String clutch = SurvivalUtilsClient.AUTO_CLUTCH.status();
+            push(client, "fall",
+                    "WARNING // DANGEROUS FALL "
+                            + String.format(java.util.Locale.ROOT, "%.1fm", p.fallDistance)
+                            + " // CLUTCH " + clutch,
+                    Severity.DANGER);
+            return;
+        }
+
+        if (cfg.isEnabled(Feature.LAVA_ALERT) && lavaNearby(client)) {
+            push(client, "lava",
+                    "WARNING // LAVA NEARBY // I recommend slowing down and keeping blocks or water ready.",
+                    Severity.CAUTION);
             return;
         }
 
@@ -190,6 +211,25 @@ public final class WarningManager {
         }
 
         lastThreat = threat.level();
+    }
+
+    private boolean lavaNearby(MinecraftClient client) {
+        if (client.player == null || client.world == null) return false;
+
+        BlockPos base = client.player.getBlockPos();
+
+        for (int y = -1; y <= 1; y++) {
+            for (int x = -2; x <= 2; x++) {
+                for (int z = -2; z <= 2; z++) {
+                    BlockPos pos = base.add(x, y, z);
+                    if (client.world.getFluidState(pos).isIn(FluidTags.LAVA)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     private boolean allowed(String key) {
