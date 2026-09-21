@@ -46,6 +46,8 @@ public final class SurvOsClient implements ClientModInitializer {
     private static boolean voiceStarted;
     private static boolean aiStarted;
     private static long lastSpokenAlert;
+    private static ThreatAnalyzer.Level lastThreatLevel = ThreatAnalyzer.Level.CLEAR;
+    private static long lastThreatNotice;
     private static long lastAiOfflineNotice;
     private static String lastDimension = "";
     private static BlockPos lastAlivePos;
@@ -194,18 +196,48 @@ public final class SurvOsClient implements ClientModInitializer {
             speakAlert(msg);
         }
 
-        int hostile = client.world.getEntitiesByClass(
-                HostileEntity.class,
-                client.player.getBoundingBox().expand(8),
-                Entity -> Entity.isAlive()
-        ).size();
-        if (hostile >= 4 && client.player.getHealth() <= 12f) {
-            speakAlert("Multiple hostiles nearby. I recommend disengaging.");
+        ThreatAnalyzer.Snapshot threat = ThreatAnalyzer.analyze(client, CONFIG);
+        long now = System.currentTimeMillis();
+
+        boolean high = threat.level().ordinal() >= ThreatAnalyzer.Level.HIGH.ordinal();
+        boolean increased = threat.level().ordinal() > lastThreatLevel.ordinal();
+
+        if (high && (increased || now - lastThreatNotice > 20_000L)) {
+            lastThreatNotice = now;
+            String warning = "WARNING // " + threat.shortLine()
+                    + " // " + threat.recommendation();
+            notice(warning);
+
+            if (CONFIG.threatVoiceWarnings) {
+                speakAlert("Warning. Threat level " + threat.level().name().toLowerCase(Locale.ROOT)
+                        + ". " + threat.recommendation() + ".");
+            }
         }
+
+        if (CONFIG.alertFire && client.player.isOnFire()) {
+            notice("WARNING // ON FIRE");
+            speakAlert("Warning. You are on fire.");
+        }
+
+        if (CONFIG.alertLowAir && client.player.getAir() < 80) {
+            notice("WARNING // AIR LOW");
+            speakAlert("Warning. Air is critically low.");
+        }
+
+        if (CONFIG.alertLowArmor && client.player.getArmor() <= 4 && high) {
+            notice("WARNING // VERY LOW ARMOR");
+        }
+
+        if (CONFIG.alertNoTotem
+                && high
+                && InventoryManager.count(client.player, "totem_of_undying") <= 0) {
+            notice("WARNING // NO TOTEM");
+        }
+
+        lastThreatLevel = threat.level();
 
         if (CONFIG.spectatorWarnings && client.getNetworkHandler() != null) {
             String self = client.player.getGameProfile().name();
-            long now = System.currentTimeMillis();
 
             for (var entry : client.getNetworkHandler().getPlayerList()) {
                 if (entry.getGameMode() != GameMode.SPECTATOR) continue;
@@ -520,6 +552,8 @@ public final class SurvOsClient implements ClientModInitializer {
                 ? "thunder"
                 : (client.world.isRaining() ? "rain" : "clear");
 
+        ThreatAnalyzer.Snapshot threat = ThreatAnalyzer.analyze(client, CONFIG);
+
         return """
 PLAYER
 health=%.1f/%.1f
@@ -534,6 +568,11 @@ weather=%s
 held_item=%s
 free_inventory_slots=%d
 nearby_hostiles=%d
+threat_level=%s
+threat_score=%d
+survival_readiness=%d
+threat_reasons=%s
+threat_recommendation=%s
 
 HOTBAR
 %s
@@ -587,6 +626,11 @@ SESSION
                 held,
                 InventoryManager.freeSlots(p),
                 hostile,
+                threat.level(),
+                threat.score(),
+                threat.readiness(),
+                threat.reasons(),
+                threat.recommendation(),
                 InventoryManager.hotbarSummary(p),
                 InventoryManager.equipmentSummary(p),
                 InventoryManager.fullSummary(p),
@@ -670,12 +714,16 @@ SESSION
 
     public static String statusLine(MinecraftClient client) {
         if (client.player == null) return "No player";
+        ThreatAnalyzer.Snapshot threat = ThreatAnalyzer.analyze(client, CONFIG);
         return String.format(
-                "HP %.1f | Food %d | Armor %d | XP %d | %s | PLAY %s | AI %s/%s | MIC %s",
+                "HP %.1f | Food %d | Armor %d | XP %d | THREAT %s/%d | READY %d%% | %s | PLAY %s | AI %s/%s | MIC %s",
                 client.player.getHealth(),
                 client.player.getHungerManager().getFoodLevel(),
                 client.player.getArmor(),
                 client.player.experienceLevel,
+                threat.level(),
+                threat.score(),
+                threat.readiness(),
                 AUTOMATION.mode(),
                 PLAY.enabled() ? PLAY.phase() : "OFF",
                 AI.status(),
@@ -795,25 +843,23 @@ SESSION
                     "ARROWS " + InventoryManager.count(p, "arrow"),
                     0xFFD8E0E6));
 
-        int hostile = nearbyHostiles(client, 16);
+        ThreatAnalyzer.Snapshot threat = ThreatAnalyzer.analyze(client, CONFIG);
 
         if (CONFIG.showHostiles) {
-            String threat;
-            int threatColor;
-            if (hostile == 0) {
-                threat = "CLEAR";
-                threatColor = 0xFF76F7A8;
-            } else if (p.getHealth() <= 8f || hostile >= 5) {
-                threat = "HIGH // " + hostile;
-                threatColor = 0xFFFF5D5D;
-            } else if (hostile >= 2) {
-                threat = "ELEVATED // " + hostile;
-                threatColor = 0xFFFFB45D;
-            } else {
-                threat = "LOW // 1";
-                threatColor = 0xFFFFE27A;
+            lines.add(new Line(threat.shortLine(), threat.color()));
+
+            if (CONFIG.showThreatReasons && !threat.reasons().isEmpty()) {
+                lines.add(new Line(threat.reasonLine(), threat.color()));
             }
-            lines.add(new Line("THREAT " + threat, threatColor));
+
+            if (CONFIG.showReadiness) {
+                int readyColor = threat.readiness() >= 75
+                        ? 0xFF74F0A6
+                        : (threat.readiness() >= 45 ? 0xFFFFC65A : 0xFFFF6666);
+                lines.add(new Line(
+                        "READINESS " + threat.readiness() + "% // " + threat.recommendation(),
+                        readyColor));
+            }
         }
 
         if (CONFIG.showNearbyPlayers) {
@@ -956,10 +1002,20 @@ SESSION
         }
 
         if (CONFIG.helmetShowThreat) {
-            int hostiles = nearbyHostiles(client, 12);
+            ThreatAnalyzer.Snapshot threat = ThreatAnalyzer.analyze(client, CONFIG);
             data.add(new Line(
-                    hostiles == 0 ? "SCAN CLEAR" : "THREAT " + hostiles,
-                    hostiles == 0 ? 0xFF75F0A4 : 0xFFFF7878));
+                    "THREAT " + threat.level() + " // " + threat.score()
+                            + " // READY " + threat.readiness() + "%",
+                    threat.color()));
+
+            if (CONFIG.showNearestThreat
+                    && threat.nearestType() != null
+                    && !threat.nearestType().isBlank()) {
+                data.add(new Line(
+                        "NEAREST " + threat.nearestType()
+                                + " " + String.format(Locale.ROOT, "%.1fm", threat.nearestDistance()),
+                        threat.color()));
+            }
         }
 
         if (CONFIG.helmetShowCoords)
