@@ -44,6 +44,7 @@ public final class SurvOsClient implements ClientModInitializer {
     private static boolean voiceStarted;
     private static boolean aiStarted;
     private static long lastSpokenAlert;
+    private static long lastAiOfflineNotice;
     private static String lastDimension = "";
     private static BlockPos lastAlivePos;
     private static String lastAliveDimension = "";
@@ -273,7 +274,124 @@ public final class SurvOsClient implements ClientModInitializer {
             return;
         }
 
+        if (handleDirectVoiceCommand(client, q)) return;
+
         askAi(q, true);
+    }
+
+    private static boolean handleDirectVoiceCommand(MinecraftClient client, String q) {
+        if (client.player == null) return false;
+
+        if (q.equals("jump") || q.equals("jump now")) {
+            CONTROL.jump();
+            TTS.speak("Jumping.", "MINIMAL");
+            return true;
+        }
+
+        if (q.equals("eat") || q.equals("eat food") || q.equals("eat something")) {
+            boolean ok = CONTROL.eat(client);
+            TTS.speak(ok ? "Eating." : "I don't see usable food.", "MINIMAL");
+            return true;
+        }
+
+        if (q.startsWith("move forward") || q.startsWith("walk forward") || q.equals("forward")) {
+            CONTROL.move("forward", voiceSeconds(q, 2.0));
+            TTS.speak("Moving forward.", "MINIMAL");
+            return true;
+        }
+
+        if (q.startsWith("move back") || q.startsWith("walk back") || q.equals("back")) {
+            CONTROL.move("back", voiceSeconds(q, 2.0));
+            TTS.speak("Moving back.", "MINIMAL");
+            return true;
+        }
+
+        if (q.startsWith("move left") || q.equals("left")) {
+            CONTROL.move("left", voiceSeconds(q, 2.0));
+            TTS.speak("Moving left.", "MINIMAL");
+            return true;
+        }
+
+        if (q.startsWith("move right") || q.equals("right")) {
+            CONTROL.move("right", voiceSeconds(q, 2.0));
+            TTS.speak("Moving right.", "MINIMAL");
+            return true;
+        }
+
+        if (q.equals("turn left") || q.equals("look left")) {
+            CONTROL.turn(client, -90f);
+            TTS.speak("Turning left.", "MINIMAL");
+            return true;
+        }
+
+        if (q.equals("turn right") || q.equals("look right")) {
+            CONTROL.turn(client, 90f);
+            TTS.speak("Turning right.", "MINIMAL");
+            return true;
+        }
+
+        if (q.equals("go home") || q.equals("take me home")) {
+            boolean ok = AUTOMATION.goToWaypoint(client, "home");
+            TTS.speak(ok ? "Going home." : "I don't have a home waypoint yet.", "NORMAL");
+            return true;
+        }
+
+        if (q.contains("combat loadout") || q.equals("gear up")) {
+            InventoryManager.applyLoadout(client, "COMBAT");
+            TTS.speak("Combat loadout applied.", "TACTICAL");
+            return true;
+        }
+
+        if (q.startsWith("mine ") || q.startsWith("get me ")) {
+            String target = q.startsWith("mine ")
+                    ? q.substring(5).trim()
+                    : q.substring(7).trim();
+
+            if (!target.isBlank()
+                    && !target.contains("wood")
+                    && !target.contains("log")
+                    && target.length() < 40) {
+                AUTOMATION.setGoal(target, 64);
+                AUTOMATION.start(AutomationManager.Mode.MINING, client);
+                TTS.speak("Mining " + target + ".", "NORMAL");
+                return true;
+            }
+        }
+
+        if (q.contains("get wood") || q.contains("get logs") || q.contains("chop trees")) {
+            AUTOMATION.setGoal("log", 32);
+            AUTOMATION.start(AutomationManager.Mode.TREE_FARM, client);
+            TTS.speak("Getting wood.", "NORMAL");
+            return true;
+        }
+
+        if (q.contains("go to ") || q.contains("navigate to ")) {
+            java.util.regex.Matcher m = java.util.regex.Pattern
+                    .compile("(-?\\\\d+)\\\\D+(-?\\\\d+)\\\\D+(-?\\\\d+)")
+                    .matcher(q);
+            if (m.find()) {
+                int x = Integer.parseInt(m.group(1));
+                int y = Integer.parseInt(m.group(2));
+                int z = Integer.parseInt(m.group(3));
+                AUTOMATION.navigateTo(client, x, y, z);
+                TTS.speak("Navigating.", "NORMAL");
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static double voiceSeconds(String q, double fallback) {
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("(\\\\d+(?:\\\\.\\\\d+)?)")
+                .matcher(q);
+        if (!m.find()) return fallback;
+        try {
+            return Math.max(0.25, Math.min(10.0, Double.parseDouble(m.group(1))));
+        } catch (Exception e) {
+            return fallback;
+        }
     }
 
     public static void askAi(String userText, boolean spokenRequest) {
@@ -291,10 +409,11 @@ public final class SurvOsClient implements ClientModInitializer {
 
         if (!AI.ready()) {
             String msg = AI.status();
-            notice("AI // " + msg);
-            if (spokenRequest && CONFIG.aiSpeakReplies) {
-                if (msg.startsWith("DOWNLOADING AI")) TTS.speak("I'm downloading my local language model. I'll be ready once that finishes.", "NORMAL");
-                else TTS.speak("My local AI is starting up.", "NORMAL");
+            notice("AI // " + msg + " // direct controls still available");
+            long now = System.currentTimeMillis();
+            if (spokenRequest && CONFIG.aiSpeakReplies && now - lastAiOfflineNotice > 15_000L) {
+                lastAiOfflineNotice = now;
+                TTS.speak("My local AI server isn't connected, but direct commands still work.", "NORMAL");
             }
             return;
         }
@@ -506,14 +625,16 @@ Session:
     public static String statusLine(MinecraftClient client) {
         if (client.player == null) return "No player";
         return String.format(
-                "HP %.1f | Food %d | Armor %d | XP %d | %s | PLAY %s | AI %s",
+                "HP %.1f | Food %d | Armor %d | XP %d | %s | PLAY %s | AI %s/%s | MIC %s",
                 client.player.getHealth(),
                 client.player.getHungerManager().getFoodLevel(),
                 client.player.getArmor(),
                 client.player.experienceLevel,
                 AUTOMATION.mode(),
                 PLAY.enabled() ? PLAY.phase() : "OFF",
-                AI.status()
+                AI.status(),
+                AI.backendName(),
+                VOICE.status()
         );
     }
 
