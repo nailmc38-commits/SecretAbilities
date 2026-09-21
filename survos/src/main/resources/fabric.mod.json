@@ -10,7 +10,8 @@
     "client": ["com.survos.SurvOsClient"]
   },
   "jars": [
-    { "file": "META-INF/jars/clientcommands-2.13.2.jar" }
+    { "file": "META-INF/jars/clientcommands-2.13.2.jar" },
+    { "file": "META-INF/jars/seedcrackerX-2.15.6.jar" }
   ],
   "depends": {
     "fabricloader": ">=0.18.4",
