@@ -358,8 +358,57 @@ public final class SurvScreen extends Screen {
                 () -> InventoryManager.applyLoadout(client, "MINING"), false);
 
         addScrollingButton(x + 12, y + 222, w - 24,
-                "WAYPOINTS  " + trim(SurvOsClient.MEMORY.waypointNames().toString(), 72),
+                "WAYPOINTS  " + trim(SurvOsClient.MEMORY.waypointDetails(), 72),
                 () -> {}, false);
+
+        int row = y + 264;
+        addScrollingButton(x + 12, row, half, "SET HOME HERE",
+                () -> SurvOsClient.MEMORY.setWaypoint(client, "home"), true);
+        addScrollingButton(x + half + 18, row, half, "GO HOME",
+                () -> SurvOsClient.AUTOMATION.goToWaypoint(client, "home"), true);
+
+        row += 38;
+        TextFieldWidget hx = scrollingField(x + 12, row, (w - 48) / 3, "Home X");
+        TextFieldWidget hy = scrollingField(x + 18 + (w - 48) / 3, row, (w - 48) / 3, "Home Y");
+        TextFieldWidget hz = scrollingField(x + 24 + ((w - 48) / 3) * 2, row, (w - 48) / 3, "Home Z");
+
+        row += 34;
+        addScrollingButton(x + 12, row, w - 24, "SAVE HOME COORDS",
+                () -> {
+                    if (client.player == null) return;
+                    int vx = parseInt(hx == null ? "" : hx.getText(), client.player.getBlockX());
+                    int vy = parseInt(hy == null ? "" : hy.getText(), client.player.getBlockY());
+                    int vz = parseInt(hz == null ? "" : hz.getText(), client.player.getBlockZ());
+                    if (SurvOsClient.MEMORY.setWaypointAtCurrentDimension(client, "home", vx, vy, vz)) {
+                        SurvOsClient.notice("Home saved at " + vx + ", " + vy + ", " + vz);
+                    }
+                }, false);
+
+        row += 42;
+        TextFieldWidget locName = scrollingField(x + 12, row, half, "Location name");
+        TextFieldWidget lx = scrollingField(x + half + 18, row, (half - 12) / 3, "X");
+        TextFieldWidget ly = scrollingField(x + half + 22 + (half - 12) / 3, row, (half - 12) / 3, "Y");
+        TextFieldWidget lz = scrollingField(x + half + 26 + ((half - 12) / 3) * 2, row, (half - 12) / 3, "Z");
+
+        row += 34;
+        addScrollingButton(x + 12, row, half, "SAVE NAMED LOCATION",
+                () -> {
+                    if (client.player == null || locName == null || locName.getText().isBlank()) return;
+                    int vx = parseInt(lx == null ? "" : lx.getText(), client.player.getBlockX());
+                    int vy = parseInt(ly == null ? "" : ly.getText(), client.player.getBlockY());
+                    int vz = parseInt(lz == null ? "" : lz.getText(), client.player.getBlockZ());
+                    if (SurvOsClient.MEMORY.setWaypointAtCurrentDimension(
+                            client, locName.getText().trim(), vx, vy, vz)) {
+                        SurvOsClient.notice("Saved " + locName.getText().trim());
+                    }
+                }, false);
+
+        addScrollingButton(x + half + 18, row, half, "GO NAMED LOCATION",
+                () -> {
+                    if (locName != null && !locName.getText().isBlank()) {
+                        SurvOsClient.AUTOMATION.goToWaypoint(client, locName.getText().trim());
+                    }
+                }, false);
     }
 
     private void hud(int x, int y, int w) {
@@ -778,7 +827,7 @@ public final class SurvScreen extends Screen {
             case AI -> 350;
             case TAKEOVER -> 350;
             case AUTOMATION -> 320;
-            case TOOLS -> 270;
+            case TOOLS -> 500;
             case DASHBOARD -> 260;
         };
         return Math.max(0, content - viewport);
