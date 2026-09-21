@@ -60,6 +60,25 @@ public final class WorldMemory {
     public Point waypoint(String name){return data.waypoints.get(clean(name));}
     public Set<String> waypointNames(){return Collections.unmodifiableSet(data.waypoints.keySet());}
 
+    public String waypointDetails(){
+        if(data.waypoints.isEmpty()) return "none";
+        StringBuilder out=new StringBuilder();
+        for(var e:data.waypoints.entrySet()){
+            if(!out.isEmpty()) out.append(" | ");
+            Point p=e.getValue();
+            out.append(e.getKey()).append("=")
+                    .append(p.x).append(",").append(p.y).append(",").append(p.z)
+                    .append("@").append(p.dimension);
+        }
+        return out.toString();
+    }
+
+    public boolean setWaypointAtCurrentDimension(MinecraftClient c,String name,int x,int y,int z){
+        if(c==null||c.world==null||name==null||name.isBlank()) return false;
+        setWaypointAt(name,new BlockPos(x,y,z),dimension(c));
+        return true;
+    }
+
     public void startRoute(String name){recordingName=clean(name); recording=new ArrayList<>();}
     public int stopRoute(){if(recording==null)return 0; data.routes.put(recordingName,new ArrayList<>(recording)); int n=recording.size(); recording=null; recordingName=null; save(); return n;}
     public List<Point> route(String name){return data.routes.getOrDefault(clean(name),List.of());}
