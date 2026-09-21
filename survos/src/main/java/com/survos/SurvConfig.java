@@ -60,6 +60,19 @@ public final class SurvConfig {
     public boolean playSafety = true;
     public boolean navigatorBreakObstacles = true;
 
+    // Combat hotbar defaults. Slot numbers are 1-9; values are item-id keywords.
+    public String combatSlot1 = "sword";
+    public String combatSlot2 = "ender_pearl";
+    public String combatSlot3 = "golden_apple";
+    public String combatSlot4 = "obsidian";
+    public String combatSlot5 = "end_crystal";
+    public String combatSlot6 = "respawn_anchor";
+    public String combatSlot6Fallback = "totem_of_undying";
+    public String combatSlot7 = "glowstone";
+    public String combatSlot7Fallback = "totem_of_undying";
+    public String combatSlot8 = "totem_of_undying";
+    public String combatSlot9 = "shield";
+
     public static SurvConfig load() {
         try {
             if (Files.exists(FILE)) {
