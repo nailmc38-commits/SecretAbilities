@@ -30,9 +30,42 @@ public final class SurvConfig {
     public boolean showHostiles = true;
     public boolean showAutomation = true;
     public boolean showVoice = true;
+    public boolean showBiome = true;
+    public boolean showLight = true;
+    public boolean showWeather = true;
+    public boolean showEffects = true;
+    public boolean showTotems = true;
+    public boolean showArrows = true;
+    public boolean showFoodCount = true;
+    public boolean showHeldItem = true;
+    public boolean showFps = true;
+    public boolean showPing = true;
+    public boolean showNearbyPlayers = false;
+    public boolean showMemory = false;
     public boolean compactHud = true;
-    public boolean hudRight = false;
-    public int maxHudLines = 10;
+    public boolean hudRight = true;
+    public int maxHudLines = 18;
+
+    // Secondary stats HUD.
+    public boolean statsHudEnabled = true;
+    public boolean statsShowSessionTime = true;
+    public boolean statsShowDistance = true;
+    public boolean statsShowBlocksMined = true;
+    public boolean statsShowMobHits = true;
+    public boolean statsShowCurrentTask = true;
+    public boolean statsShowGoalRate = true;
+    public boolean statsShowInventoryFree = true;
+    public boolean statsShowPlayPhase = true;
+
+    // Helmet HUD appears only while a helmet is equipped.
+    public boolean helmetHudEnabled = true;
+    public boolean helmetShowHelmet = true;
+    public boolean helmetShowThreat = true;
+    public boolean helmetShowCoords = true;
+    public boolean helmetShowTask = true;
+    public boolean helmetShowDurability = true;
+    public boolean helmetShowVoice = true;
+    public boolean helmetShowTime = true;
     public boolean smartAlerts = true;
     public boolean spectatorWarnings = true;
     public boolean autoEatSafety = true;
@@ -53,7 +86,13 @@ public final class SurvConfig {
     public boolean ttsEnabled = true;
     public String voiceStyle = "CINEMATIC";
     public boolean autoDimensionProfiles = true;
-    public boolean autoHotbar = true;
+    public boolean autoHotbar = false;
+    public boolean[] autoRefillSlots = new boolean[] {
+            false,false,false,false,false,false,false,false,false
+    };
+    public String[] autoRefillItems = new String[] {
+            "","","","","","","","",""
+    };
     public boolean autoDeathWaypoint = true;
     public boolean showGoalRate = true;
     public String hudTheme = "CYAN";
@@ -78,7 +117,10 @@ public final class SurvConfig {
         try {
             if (Files.exists(FILE)) {
                 SurvConfig cfg = GSON.fromJson(Files.readString(FILE, StandardCharsets.UTF_8), SurvConfig.class);
-                if (cfg != null) return cfg;
+                if (cfg != null) {
+                    cfg.sanitize();
+                    return cfg;
+                }
             }
         } catch (Exception ignored) {}
         SurvConfig cfg = new SurvConfig();
@@ -86,7 +128,31 @@ public final class SurvConfig {
         return cfg;
     }
 
+    public void sanitize() {
+        if (autoRefillSlots == null || autoRefillSlots.length != 9) {
+            boolean[] old = autoRefillSlots;
+            autoRefillSlots = new boolean[9];
+            if (old != null) {
+                System.arraycopy(old, 0, autoRefillSlots, 0, Math.min(old.length, 9));
+            }
+        }
+
+        if (autoRefillItems == null || autoRefillItems.length != 9) {
+            String[] old = autoRefillItems;
+            autoRefillItems = new String[9];
+            java.util.Arrays.fill(autoRefillItems, "");
+            if (old != null) {
+                System.arraycopy(old, 0, autoRefillItems, 0, Math.min(old.length, 9));
+            }
+        }
+
+        for (int i = 0; i < 9; i++) {
+            if (autoRefillItems[i] == null) autoRefillItems[i] = "";
+        }
+    }
+
     public void save() {
+        sanitize();
         try {
             Files.createDirectories(FILE.getParent());
             Files.writeString(FILE, GSON.toJson(this), StandardCharsets.UTF_8);
