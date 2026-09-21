@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 public final class SurvScreen extends Screen {
-    public enum Tab { DASHBOARD, AI, AUTOMATION, TOOLS, SETTINGS }
+    public enum Tab { DASHBOARD, AI, TAKEOVER, AUTOMATION, TOOLS, SETTINGS }
 
     private Tab tab;
     private int scrollOffset;
@@ -40,9 +40,8 @@ public final class SurvScreen extends Screen {
         int panelW = Math.min(540, width - 28);
         int x = (width - panelW) / 2;
         int gap = 5;
-        int bw = (panelW - gap * 4) / 5;
-
         Tab[] tabs = Tab.values();
+        int bw = (panelW - gap * (tabs.length - 1)) / tabs.length;
         for (int i = 0; i < tabs.length; i++) {
             Tab t = tabs[i];
             addFixedButton(
@@ -63,6 +62,7 @@ public final class SurvScreen extends Screen {
         switch (tab) {
             case DASHBOARD -> dashboard(x, y, panelW);
             case AI -> ai(x, y, panelW);
+            case TAKEOVER -> takeover(x, y, panelW);
             case AUTOMATION -> automation(x, y, panelW);
             case TOOLS -> tools(x, y, panelW);
             case SETTINGS -> settings(x, y, panelW);
@@ -126,7 +126,8 @@ public final class SurvScreen extends Screen {
         }, true);
 
         addScrollingButton(x + 12, y + 36, w - 24,
-                "AI  " + SurvOsClient.AI.status() + "  •  VOICE " + SurvOsClient.TTS.status(),
+                "AI  " + SurvOsClient.AI.status() + "  •  " + SurvOsClient.AI.backendName()
+                        + "  •  VOICE " + SurvOsClient.TTS.status(),
                 () -> {
                     SurvOsClient.AI.ensureStarted();
                     SurvOsClient.TTS.setEnabled(true);
@@ -158,6 +159,16 @@ public final class SurvScreen extends Screen {
                 v -> SurvOsClient.CONFIG.memoryEnabled = v);
 
         addScrollingButton(x + 12, y + 144, w - 24,
+                "MIC  " + SurvOsClient.VOICE.status()
+                        + "  •  LEVEL " + Math.round(SurvOsClient.VOICE.micLevel() * 100f) + "%"
+                        + "  •  LAST " + trim(SurvOsClient.VOICE.lastHeard(), 28),
+                () -> {
+                    SurvOsClient.VOICE.stop();
+                    SurvOsClient.VOICE.start(SurvOsClient.CONFIG);
+                    rebuild();
+                }, SurvOsClient.VOICE.isRunning());
+
+        addScrollingButton(x + 12, y + 180, w - 24,
                 "VOICE STYLE  " + SurvOsClient.CONFIG.voiceStyle,
                 () -> {
                     SurvOsClient.CONFIG.voiceStyle = SurvOsClient.TTS.cycleStyle();
@@ -166,21 +177,89 @@ public final class SurvScreen extends Screen {
                     rebuild();
                 }, false);
 
-        TextFieldWidget remember = scrollingField(x + 12, y + 180, w - 104, "Remember this...");
-        addScrollingButton(x + w - 84, y + 180, 72, "SAVE", () -> {
+        TextFieldWidget remember = scrollingField(x + 12, y + 216, w - 104, "Remember this...");
+        addScrollingButton(x + w - 84, y + 216, 72, "SAVE", () -> {
             if (remember != null && !remember.getText().isBlank()) {
                 SurvOsClient.CHAT_MEMORY.remember(remember.getText());
                 SurvOsClient.notice("Remembered.");
             }
         }, false);
 
-        addScrollingButton(x + 12, y + 216, w - 24,
+        addScrollingButton(x + 12, y + 252, w - 24,
                 "RECENT  " + trim(SurvOsClient.recentCommands().toString(), 74),
                 () -> {}, false);
 
-        addScrollingButton(x + 12, y + 252, w - 24,
+        addScrollingButton(x + 12, y + 288, w - 24,
                 "REPLY  " + trim(SurvOsClient.AI.lastReply(), 74),
                 () -> {}, false);
+    }
+
+    private void takeover(int x, int y, int w) {
+        addScrollingButton(x + 12, y, w - 24,
+                SurvOsClient.PLAY.enabled()
+                        ? "RELEASE CONTROL  //  PLAY " + SurvOsClient.PLAY.phase()
+                        : "TAKE OVER  //  SURV PLAYS FOR ME",
+                () -> {
+                    if (SurvOsClient.PLAY.enabled()) SurvOsClient.PLAY.stop(client);
+                    else SurvOsClient.PLAY.start(client);
+                    rebuild();
+                }, true);
+
+        addScrollingButton(x + 12, y + 38, w - 24,
+                "STATUS  " + SurvOsClient.PLAY.status()
+                        + "  •  AUTO " + SurvOsClient.AUTOMATION.mode()
+                        + " / " + SurvOsClient.AUTOMATION.state(),
+                () -> {}, false);
+
+        TextFieldWidget order = scrollingField(
+                x + 12, y + 76, w - 104,
+                "Tell SURV exactly what to do while it has control...");
+        addScrollingButton(x + w - 84, y + 76, 72, "DO IT",
+                () -> {
+                    if (order != null && !order.getText().isBlank()) {
+                        SurvOsClient.askAi(order.getText().trim(), false);
+                    }
+                }, true);
+
+        int half = (w - 30) / 2;
+        addScrollingButton(x + 12, y + 114, half, "COMBAT LOADOUT",
+                () -> InventoryManager.applyLoadout(client, "COMBAT"), false);
+        addScrollingButton(x + half + 18, y + 114, half, "GO HOME",
+                () -> SurvOsClient.AUTOMATION.goToWaypoint(client, "home"), false);
+
+        addScrollingButton(x + 12, y + 150, half, "GET WOOD",
+                () -> {
+                    SurvOsClient.AUTOMATION.setGoal("log", 32);
+                    SurvOsClient.AUTOMATION.start(AutomationManager.Mode.TREE_FARM, client);
+                }, false);
+        addScrollingButton(x + half + 18, y + 150, half, "MINE",
+                () -> SurvOsClient.AUTOMATION.start(AutomationManager.Mode.MINING, client), false);
+
+        addScrollingButton(x + 12, y + 186, half, "DEFEND / GRIND",
+                () -> SurvOsClient.AUTOMATION.start(AutomationManager.Mode.MOB_GRIND, client), false);
+        addScrollingButton(x + half + 18, y + 186, half, "RETURN START",
+                () -> SurvOsClient.AUTOMATION.returnToTaskStart(client), false);
+
+        addToggle(x + 12, y + 224, half, "Play safety",
+                () -> SurvOsClient.CONFIG.playSafety,
+                v -> SurvOsClient.CONFIG.playSafety = v);
+        addToggle(x + half + 18, y + 224, half, "Collect loot",
+                () -> SurvOsClient.CONFIG.collectLoot,
+                v -> SurvOsClient.CONFIG.collectLoot = v);
+
+        addScrollingButton(x + 12, y + 260, w - 24,
+                "MIC " + SurvOsClient.VOICE.status()
+                        + "  •  LEVEL " + Math.round(SurvOsClient.VOICE.micLevel() * 100f) + "%"
+                        + "  •  " + trim(SurvOsClient.VOICE.lastHeard(), 42),
+                () -> {
+                    SurvOsClient.VOICE.stop();
+                    SurvOsClient.VOICE.start(SurvOsClient.CONFIG);
+                    rebuild();
+                }, SurvOsClient.VOICE.isRunning());
+
+        addScrollingButton(x + 12, y + 296, w - 24,
+                "F7 = IMMEDIATELY RELEASE SURV CONTROL",
+                this::stopAll, true);
     }
 
     private void automation(int x, int y, int w) {
@@ -465,7 +544,8 @@ public final class SurvScreen extends Screen {
         int viewport = Math.max(120, contentBottom - CONTENT_TOP - 8);
         int content = switch (tab) {
             case SETTINGS -> 620;
-            case AI -> 300;
+            case AI -> 350;
+            case TAKEOVER -> 350;
             case AUTOMATION -> 320;
             case TOOLS -> 270;
             case DASHBOARD -> 260;
@@ -514,6 +594,7 @@ public final class SurvScreen extends Screen {
         String title = switch (tab) {
             case DASHBOARD -> "COMMAND CENTER";
             case AI -> "SURV AI + MEMORY";
+            case TAKEOVER -> "TAKE OVER";
             case AUTOMATION -> "AUTOMATION + NAVIGATION";
             case TOOLS -> "SURVIVAL TOOLS";
             case SETTINGS -> "SETTINGS  •  SCROLL FOR MORE";
