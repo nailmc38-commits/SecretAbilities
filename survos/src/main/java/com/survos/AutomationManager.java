@@ -306,15 +306,23 @@ public final class AutomationManager {
 
     private void tickMining(MinecraftClient c, SurvConfig cfg) {
         if (blockTarget == null || c.world.getBlockState(blockTarget).isAir()) {
-            blockTarget = WorldScanner.exposedOre(c, 12, goalItem);
-            if (blockTarget == null && goalItem.isBlank()) blockTarget = WorldScanner.exposedOre(c, 12, "");
+            if (!goalItem.isBlank()) {
+                blockTarget = WorldScanner.exposedOre(c, 14, goalItem);
+                if (blockTarget == null) {
+                    blockTarget = WorldScanner.visibleBlock(c, 14, 7, goalItem);
+                }
+            } else {
+                blockTarget = WorldScanner.exposedOre(c, 12, "");
+            }
         }
 
         if (blockTarget == null) {
             noTargetTicks++;
             if (noTargetTicks < 20) {
                 state = State.SEARCHING;
-                reason = "Scanning loaded area for exposed ores";
+                reason = goalItem.isBlank()
+                        ? "Scanning loaded area for exposed ores"
+                        : "Scanning loaded area for " + goalItem;
                 return;
             }
             tickBranchMine(c, cfg);
