@@ -10,9 +10,11 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.item.ItemStack;
 import net.minecraft.registry.Registries;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.Direction;
 import net.minecraft.world.GameMode;
 import org.lwjgl.glfw.GLFW;
 
@@ -93,12 +95,29 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
             lines.add(new Line("ARMOR " + p.getArmor() + "/20", 0xFF8BE9FD));
         }
 
+        if (CONFIG.isEnabled(Feature.ARMOR_DURABILITY_HUD)) {
+            lines.add(new Line(armorDurabilityLine(p), 0xFF9FD7FF));
+        }
+
         if (CONFIG.isEnabled(Feature.XP_HUD)) {
             lines.add(new Line("XP " + p.experienceLevel, 0xFFC7FF77));
         }
 
         if (CONFIG.isEnabled(Feature.COORDS_HUD)) {
             lines.add(new Line("XYZ " + p.getBlockX() + " " + p.getBlockY() + " " + p.getBlockZ(), 0xFFD7E3EA));
+        }
+
+        if (CONFIG.isEnabled(Feature.DIRECTION_HUD)) {
+            Direction facing = Direction.fromHorizontalDegrees(p.getYaw());
+            lines.add(new Line("DIR " + facing.getName().toUpperCase(Locale.ROOT), 0xFFAEDBFF));
+        }
+
+        if (CONFIG.isEnabled(Feature.FALL_DISTANCE_HUD)) {
+            float fall = p.fallDistance;
+            int fallColor = fall >= 8f ? 0xFFFF5D5D : (fall >= 4f ? 0xFFFFC15A : 0xFF9FB4C0);
+            lines.add(new Line(
+                    String.format(Locale.ROOT, "FALL %.1fm // %s", fall, AUTO_CLUTCH.status()),
+                    fallColor));
         }
 
         if (CONFIG.isEnabled(Feature.BIOME_HUD)) {
@@ -190,6 +209,40 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
             lines.add(new Line(
                     "READINESS " + threat.readiness() + "% // " + threat.recommendation(),
                     readyColor));
+        }
+
+        if (CONFIG.isEnabled(Feature.NEAREST_HOSTILE_HUD)) {
+            if (threat.nearestType() == null || threat.nearestType().isBlank()) {
+                lines.add(new Line("NEAREST HOSTILE none", 0xFF75F0A4));
+            } else {
+                lines.add(new Line(
+                        "NEAREST " + threat.nearestType() + " "
+                                + String.format(Locale.ROOT, "%.1fm", threat.nearestDistance()),
+                        threat.color()));
+            }
+        }
+
+        if (CONFIG.isEnabled(Feature.SAFE_SLEEP_HUD)) {
+            long t = Math.floorMod(client.world.getTimeOfDay(), 24000L);
+            boolean night = t >= 12542L && t < 23460L;
+            String sleep;
+            int sleepColor;
+
+            if (!InventoryUtil.hasBed(p)) {
+                sleep = "SLEEP // NO BED";
+                sleepColor = 0xFFFFA97A;
+            } else if (!night) {
+                sleep = "SLEEP // DAYTIME";
+                sleepColor = 0xFF9FB4C0;
+            } else if (threat.hostileCount() > 0) {
+                sleep = "SLEEP // HOSTILES NEAR";
+                sleepColor = 0xFFFF6B6B;
+            } else {
+                sleep = "SLEEP // READY";
+                sleepColor = 0xFF74F0A6;
+            }
+
+            lines.add(new Line(sleep, sleepColor));
         }
 
         if (CONFIG.isEnabled(Feature.PLAYER_RADAR)) {
@@ -474,6 +527,24 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
                 ctx.getScaledWindowWidth() / 2,
                 top + 7,
                 color);
+    }
+
+    private static String armorDurabilityLine(net.minecraft.entity.player.PlayerEntity player) {
+        ItemStack head = player.getEquippedStack(EquipmentSlot.HEAD);
+        ItemStack chest = player.getEquippedStack(EquipmentSlot.CHEST);
+        ItemStack legs = player.getEquippedStack(EquipmentSlot.LEGS);
+        ItemStack feet = player.getEquippedStack(EquipmentSlot.FEET);
+
+        return "ARMOR DURA H" + pieceDurability(head)
+                + " C" + pieceDurability(chest)
+                + " L" + pieceDurability(legs)
+                + " B" + pieceDurability(feet);
+    }
+
+    private static String pieceDurability(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return "--";
+        if (!stack.isDamageable()) return "100";
+        return Integer.toString(InventoryUtil.durabilityPercent(stack));
     }
 
     private static String dayNight(MinecraftClient client) {
