@@ -28,6 +28,10 @@ public final class SurvConfig {
     public boolean showDurability = true;
     public boolean showInventory = true;
     public boolean showHostiles = true;
+    public boolean showThreatReasons = true;
+    public boolean showReadiness = true;
+    public boolean showNearestThreat = true;
+    public double threatRadius = 18.0;
     public boolean showAutomation = true;
     public boolean showVoice = true;
     public boolean showBiome = true;
@@ -68,6 +72,11 @@ public final class SurvConfig {
     public boolean helmetShowTime = true;
     public boolean smartAlerts = true;
     public boolean spectatorWarnings = true;
+    public boolean threatVoiceWarnings = true;
+    public boolean alertFire = true;
+    public boolean alertLowAir = true;
+    public boolean alertNoTotem = true;
+    public boolean alertLowArmor = true;
     public boolean autoEatSafety = true;
     public boolean lowHealthSafety = true;
     public float retreatHealth = 8.0f;
