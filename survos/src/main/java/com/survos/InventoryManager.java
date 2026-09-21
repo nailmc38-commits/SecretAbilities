@@ -3,6 +3,7 @@ package com.survos;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.passive.AnimalEntity;
+import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -78,13 +79,22 @@ public final class InventoryManager {
 
     public static String equipmentSummary(PlayerEntity p) {
         StringBuilder out = new StringBuilder("armor=");
-        boolean first = true;
-        for (ItemStack s : p.getArmorItems()) {
-            if (!first) out.append(",");
-            first = false;
+        EquipmentSlot[] slots = {
+                EquipmentSlot.FEET,
+                EquipmentSlot.LEGS,
+                EquipmentSlot.CHEST,
+                EquipmentSlot.HEAD
+        };
+
+        for (int i = 0; i < slots.length; i++) {
+            if (i > 0) out.append(",");
+            ItemStack s = p.getEquippedStack(slots[i]);
             out.append(s.isEmpty() ? "empty" : id(s).replace("minecraft:", ""));
-            if (!s.isEmpty() && s.isDamageable()) out.append("@").append(durabilityPercent(s)).append("%");
+            if (!s.isEmpty() && s.isDamageable()) {
+                out.append("@").append(durabilityPercent(s)).append("%");
+            }
         }
+
         ItemStack off = p.getOffHandStack();
         out.append(" offhand=").append(off.isEmpty() ? "empty" : id(off).replace("minecraft:", ""));
         return out.toString();
