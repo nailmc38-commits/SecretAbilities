@@ -245,7 +245,13 @@ public final class InventoryManager {
 
     public static void applyLoadout(MinecraftClient c,String profile) {
         if(c.player==null) return;
-        String p=profile==null?"":profile.toLowerCase(Locale.ROOT);
+        String p=profile==null?"":profile.trim().toLowerCase(Locale.ROOT);
+
+        String[] custom = SurvOsClient.CONFIG.customLoadout(p);
+        if (custom != null) {
+            applyCustomHotbar(c, custom, null);
+            return;
+        }
 
         if ("combat".equals(p)) {
             SurvConfig cfg = SurvOsClient.CONFIG;
