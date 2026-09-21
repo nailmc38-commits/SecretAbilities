@@ -400,6 +400,23 @@ public final class SurvOsClient implements ClientModInitializer {
             return true;
         }
 
+        if (q.contains("loadout")) {
+            String name = q
+                    .replace("equip", "")
+                    .replace("switch to", "")
+                    .replace("use my", "")
+                    .replace("use", "")
+                    .replace("my", "")
+                    .replace("loadout", "")
+                    .trim();
+
+            if (!name.isBlank()) {
+                InventoryManager.applyLoadout(client, name);
+                TTS.speak(name + " loadout applied.", "TACTICAL");
+                return true;
+            }
+        }
+
         if (q.startsWith("mine ") || q.startsWith("get me ")) {
             String target = q.startsWith("mine ")
                     ? q.substring(5).trim()
