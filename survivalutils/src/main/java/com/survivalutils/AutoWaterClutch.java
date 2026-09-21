@@ -1,17 +1,19 @@
 package com.survivalutils;
 
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.util.Hand;
+import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.Vec3d;
 
 public final class AutoWaterClutch {
     private String status = "OFF";
     private boolean triggeredThisFall;
-    private boolean pressingUse;
-    private int useTicks;
     private int cooldownTicks;
+    private int restoreTicks;
 
     private int oldSelectedSlot = -1;
-    private float oldPitch;
     private boolean swappedFromInventory;
     private int sourceInventoryIndex = -1;
     private int clutchHotbarSlot = -1;
@@ -22,7 +24,7 @@ public final class AutoWaterClutch {
 
     public void tick(MinecraftClient client) {
         if (client == null || client.player == null || client.world == null) {
-            reset(client);
+            clearState(client);
             status = "OFF";
             return;
         }
@@ -30,31 +32,24 @@ public final class AutoWaterClutch {
         var player = client.player;
 
         if (!SurvivalUtilsClient.CONFIG.isEnabled(Feature.AUTO_WATER_CLUTCH)) {
-            reset(client);
+            clearState(client);
             status = "OFF";
             return;
         }
 
         if (cooldownTicks > 0) cooldownTicks--;
 
-        if (useTicks > 0) {
-            pressingUse = true;
-            client.options.useKey.setPressed(true);
-            useTicks--;
-
-            if (useTicks == 0) {
-                client.options.useKey.setPressed(false);
-                pressingUse = false;
+        if (restoreTicks > 0) {
+            restoreTicks--;
+            if (restoreTicks == 0) {
                 restoreInventory(client);
-                status = "USED";
-                cooldownTicks = 12;
+                status = player.isOnGround() ? "ARMED" : "USED";
             }
-            return;
         }
 
         if (player.isOnGround() || player.isTouchingWater()) {
             triggeredThisFall = false;
-            if (cooldownTicks <= 0) {
+            if (cooldownTicks <= 0 && restoreTicks <= 0) {
                 status = InventoryUtil.hasWaterBucket(player) ? "ARMED" : "NO WATER";
             }
             return;
@@ -70,32 +65,44 @@ public final class AutoWaterClutch {
             return;
         }
 
-        status = "ARMED";
+        if (restoreTicks <= 0) status = "ARMED";
 
-        if (triggeredThisFall || cooldownTicks > 0 || client.currentScreen != null) return;
+        if (triggeredThisFall || cooldownTicks > 0 || restoreTicks > 0 || client.currentScreen != null) return;
 
         double vy = player.getVelocity().y;
         if (player.fallDistance < SurvivalUtilsClient.CONFIG.clutchMinFallDistance || vy > -0.42) return;
 
-        int ground = groundDistance(client, SurvivalUtilsClient.CONFIG.clutchTriggerBlocks);
-        if (ground < 1 || ground > SurvivalUtilsClient.CONFIG.clutchTriggerBlocks) return;
+        BlockPos ground = groundBlock(client, SurvivalUtilsClient.CONFIG.clutchTriggerBlocks);
+        if (ground == null) return;
 
         if (!selectWaterBucket(client)) {
             status = "NO WATER";
             return;
         }
 
-        oldPitch = player.getPitch();
-        player.setPitch(90.0f);
+        if (client.interactionManager == null) {
+            restoreInventory(client);
+            return;
+        }
+
+        Vec3d hitPos = Vec3d.ofCenter(ground).add(0.0, 0.5, 0.0);
+        BlockHitResult hit = new BlockHitResult(
+                hitPos,
+                Direction.UP,
+                ground,
+                false
+        );
+
+        client.interactionManager.interactBlock(player, Hand.MAIN_HAND, hit);
+        player.swingHand(Hand.MAIN_HAND);
 
         triggeredThisFall = true;
         status = "TRIGGERING";
-        useTicks = 3;
-        pressingUse = true;
-        client.options.useKey.setPressed(true);
+        restoreTicks = 2;
+        cooldownTicks = 12;
     }
 
-    private int groundDistance(MinecraftClient client, int maxBlocks) {
+    private BlockPos groundBlock(MinecraftClient client, int maxBlocks) {
         var player = client.player;
         int x = player.getBlockX();
         int z = player.getBlockZ();
@@ -106,11 +113,11 @@ public final class AutoWaterClutch {
             var state = client.world.getBlockState(pos);
 
             if (!state.getCollisionShape(client.world, pos).isEmpty()) {
-                return i;
+                return pos;
             }
         }
 
-        return -1;
+        return null;
     }
 
     private boolean selectWaterBucket(MinecraftClient client) {
@@ -119,7 +126,6 @@ public final class AutoWaterClutch {
         if (invIndex < 0) return false;
 
         oldSelectedSlot = player.getInventory().getSelectedSlot();
-        oldPitch = player.getPitch();
         swappedFromInventory = false;
         sourceInventoryIndex = -1;
 
@@ -147,7 +153,6 @@ public final class AutoWaterClutch {
         if (client == null || client.player == null) return;
 
         var player = client.player;
-        player.setPitch(oldPitch);
 
         if (swappedFromInventory && sourceInventoryIndex >= 9 && clutchHotbarSlot >= 0) {
             InventoryUtil.swapInventoryToHotbar(client, sourceInventoryIndex, clutchHotbarSlot);
@@ -163,12 +168,8 @@ public final class AutoWaterClutch {
         swappedFromInventory = false;
     }
 
-    private void reset(MinecraftClient client) {
-        if (client != null && client.options != null && pressingUse) {
-            client.options.useKey.setPressed(false);
-        }
-        pressingUse = false;
-        useTicks = 0;
+    private void clearState(MinecraftClient client) {
+        restoreTicks = 0;
         triggeredThisFall = false;
         restoreInventory(client);
     }
