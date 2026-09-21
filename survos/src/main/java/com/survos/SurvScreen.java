@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 public final class SurvScreen extends Screen {
-    public enum Tab { DASHBOARD, AI, TAKEOVER, AUTOMATION, TOOLS, HUD, REFILL, SETTINGS }
+    public enum Tab { DASHBOARD, AI, TAKEOVER, AUTOMATION, TOOLS, LOADOUTS, HUD, REFILL, SETTINGS }
 
     private Tab tab;
     private int scrollOffset;
@@ -65,6 +65,7 @@ public final class SurvScreen extends Screen {
             case TAKEOVER -> takeover(x, y, panelW);
             case AUTOMATION -> automation(x, y, panelW);
             case TOOLS -> tools(x, y, panelW);
+            case LOADOUTS -> loadouts(x, y, panelW);
             case HUD -> hud(x, y, panelW);
             case REFILL -> refill(x, y, panelW);
             case SETTINGS -> settings(x, y, panelW);
@@ -414,6 +415,95 @@ public final class SurvScreen extends Screen {
                         SurvOsClient.AUTOMATION.goToWaypoint(client, locName.getText().trim());
                     }
                 }, false);
+    }
+
+    private void loadouts(int x, int y, int w) {
+        int half = (w - 30) / 2;
+        int row = y;
+
+        TextFieldWidget name = scrollingField(
+                x + 12, row, w - 24,
+                "Loadout name, e.g. cpvp / mining / raid");
+
+        row += 40;
+        addScrollingButton(
+                x + 12, row, w - 24,
+                "SAVED  " + trim(SurvOsClient.CONFIG.customLoadoutNames().toString(), 76),
+                () -> {},
+                false);
+
+        row += 42;
+
+        TextFieldWidget[] slots = new TextFieldWidget[9];
+        for (int i = 0; i < 9; i++) {
+            final int slot = i;
+            int colX = (i % 2 == 0) ? x + 12 : x + half + 18;
+            int slotY = row + (i / 2) * 36;
+            int slotW = (i == 8) ? w - 24 : half;
+
+            slots[i] = scrollingField(
+                    colX,
+                    slotY,
+                    slotW,
+                    "Slot " + (i + 1) + " item keyword");
+        }
+
+        row += 5 * 36 + 8;
+
+        addScrollingButton(x + 12, row, half, "SAVE LOADOUT", () -> {
+            if (name == null || name.getText().isBlank()) {
+                SurvOsClient.notice("Enter a loadout name.");
+                return;
+            }
+
+            String[] values = new String[9];
+            for (int i = 0; i < 9; i++) {
+                values[i] = slots[i] == null ? "" : slots[i].getText().trim();
+            }
+
+            SurvOsClient.CONFIG.saveCustomLoadout(name.getText(), values);
+            SurvOsClient.notice("Saved loadout " + name.getText().trim().toLowerCase());
+            rebuild();
+        }, true);
+
+        addScrollingButton(x + half + 18, row, half, "APPLY LOADOUT", () -> {
+            if (name == null || name.getText().isBlank()) return;
+            InventoryManager.applyLoadout(client, name.getText());
+            SurvOsClient.notice("Applied loadout " + name.getText().trim().toLowerCase());
+        }, true);
+
+        row += 38;
+
+        addScrollingButton(x + 12, row, half, "LOAD SAVED VALUES", () -> {
+            if (name == null || name.getText().isBlank()) return;
+
+            String[] saved = SurvOsClient.CONFIG.customLoadout(name.getText());
+            if (saved == null) {
+                SurvOsClient.notice("No saved loadout named " + name.getText().trim());
+                return;
+            }
+
+            for (int i = 0; i < 9; i++) {
+                if (slots[i] != null) slots[i].setText(saved[i]);
+            }
+        }, false);
+
+        addScrollingButton(x + half + 18, row, half, "DELETE LOADOUT", () -> {
+            if (name == null || name.getText().isBlank()) return;
+            boolean deleted = SurvOsClient.CONFIG.deleteCustomLoadout(name.getText());
+            SurvOsClient.notice(deleted ? "Loadout deleted." : "Loadout not found.");
+            rebuild();
+        }, false);
+
+        row += 42;
+
+        addScrollingButton(
+                x + 12,
+                row,
+                w - 24,
+                "VOICE // say: equip cpvp loadout  •  switch to mining loadout",
+                () -> {},
+                false);
     }
 
     private void hud(int x, int y, int w) {
@@ -912,6 +1002,7 @@ public final class SurvScreen extends Screen {
             case TAKEOVER -> "TAKE OVER";
             case AUTOMATION -> "AUTOMATION + NAVIGATION";
             case TOOLS -> "SURVIVAL TOOLS";
+            case LOADOUTS -> "CUSTOM LOADOUTS";
             case HUD -> "HUD MODULES  •  THREE LAYERS";
             case REFILL -> "AUTO REFILL  •  SLOT BY SLOT";
             case SETTINGS -> "SETTINGS  •  SCROLL FOR MORE";
