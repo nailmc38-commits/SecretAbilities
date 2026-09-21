@@ -1,10 +1,13 @@
 package com.survos;
 
+import com.k2fsa.sherpa.onnx.*;
+import net.fabricmc.loader.api.FabricLoader;
+
 import javax.sound.sampled.*;
 import java.io.*;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -12,131 +15,297 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 public final class VoiceService {
+    private static final int SAMPLE_RATE = 16000;
+    private static final int WINDOW_SIZE = 512;
+    private static final String ASR_URL =
+            "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-moonshine-tiny-en-int8.tar.bz2";
+    private static final String VAD_URL =
+            "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx";
+
     private final AtomicBoolean running = new AtomicBoolean(false);
-    private volatile Process process;
     private volatile TargetDataLine micLine;
     private volatile String status = "OFFLINE";
     private volatile String lastHeard = "";
+    private volatile String lastError = "";
+    private volatile float micLevel;
     private Consumer<String> listener = s -> {};
 
-    public void setListener(Consumer<String> listener) { this.listener = listener == null ? s -> {} : listener; }
+    public void setListener(Consumer<String> listener) {
+        this.listener = listener == null ? s -> {} : listener;
+    }
+
     public boolean isRunning() { return running.get(); }
     public String status() { return status; }
     public String lastHeard() { return lastHeard; }
+    public String lastError() { return lastError; }
+    public float micLevel() { return micLevel; }
 
     public List<String> microphones() {
         ArrayList<String> result = new ArrayList<>();
         result.add("System Default");
-        DataLine.Info info = new DataLine.Info(TargetDataLine.class, new AudioFormat(16000f, 16, 1, true, false));
+        AudioFormat format = new AudioFormat(SAMPLE_RATE, 16, 1, true, false);
+        DataLine.Info info = new DataLine.Info(TargetDataLine.class, format);
+
         for (Mixer.Info mi : AudioSystem.getMixerInfo()) {
             try {
                 Mixer mixer = AudioSystem.getMixer(mi);
                 if (mixer.isLineSupported(info)) result.add(mi.getName());
-            } catch (Exception ignored) {}
+            } catch (Throwable ignored) {}
         }
         return result;
     }
 
     public synchronized void start(SurvConfig cfg) {
         if (running.get()) return;
-        if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")) {
-            status = "WINDOWS ONLY";
-            return;
-        }
         running.set(true);
-        status = "STARTING";
-        Thread.ofVirtual().name("SURV-Voice-Startup").start(() -> runVoice(cfg));
+        lastError = "";
+        status = "STARTING MIC";
+        Thread.ofVirtual().name("SURV-Voice").start(() -> runVoice(cfg));
     }
 
     public synchronized void stop() {
         running.set(false);
         status = "OFFLINE";
-        try { if (micLine != null) { micLine.stop(); micLine.close(); } } catch (Exception ignored) {}
-        try { if (process != null) process.destroyForcibly(); } catch (Exception ignored) {}
-        micLine = null; process = null;
+        micLevel = 0f;
+        try {
+            if (micLine != null) {
+                micLine.stop();
+                micLine.flush();
+                micLine.close();
+            }
+        } catch (Throwable ignored) {}
+        micLine = null;
     }
 
-    public void toggle(SurvConfig cfg) { if (isRunning()) stop(); else start(cfg); }
+    public void toggle(SurvConfig cfg) {
+        if (isRunning()) stop();
+        else start(cfg);
+    }
 
     private void runVoice(SurvConfig cfg) {
-        Path script = null;
+        Vad vad = null;
+        OfflineRecognizer recognizer = null;
+
         try {
-            int sampleRate = 16000;
-            AudioFormat format = new AudioFormat(sampleRate, 16, 1, true, false);
-            DataLine.Info lineInfo = new DataLine.Info(TargetDataLine.class, format);
-            TargetDataLine line = openMic(cfg.microphone, lineInfo, format);
-            line.open(format); line.start(); micLine = line;
-            script = Files.createTempFile("surv-voice-", ".ps1");
-            Files.writeString(script, powershellScript(), StandardCharsets.UTF_8);
-            ProcessBuilder pb = new ProcessBuilder(
-                    "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-                    script.toAbsolutePath().toString(), Integer.toString(sampleRate), Double.toString(cfg.voiceConfidence));
-            pb.redirectErrorStream(true);
-            Process p = pb.start(); process = p;
-            Thread.ofVirtual().name("SURV-Voice-Reader").start(() -> readOutput(p));
+            Path root = FabricLoader.getInstance().getGameDir()
+                    .resolve("surv-ai")
+                    .resolve("speech");
+            Path modelDir = root.resolve("sherpa-onnx-moonshine-tiny-en-int8");
+            Path vadFile = root.resolve("silero_vad.onnx");
+
+            ensureModels(root, modelDir, vadFile);
+
+            status = "LOADING MIC AI";
+            vad = createVad(vadFile);
+            recognizer = createRecognizer(modelDir);
+
+            AudioFormat format = new AudioFormat(SAMPLE_RATE, 16, 1, true, false);
+            DataLine.Info info = new DataLine.Info(TargetDataLine.class, format);
+            TargetDataLine line = openMic(cfg.microphone, info, format);
+            line.open(format);
+            line.start();
+            micLine = line;
+
             status = "LISTENING";
-            byte[] buffer = new byte[4096];
-            OutputStream out = p.getOutputStream();
-            while (running.get() && p.isAlive()) {
+            byte[] buffer = new byte[WINDOW_SIZE * 2];
+            float[] samples = new float[WINDOW_SIZE];
+
+            while (running.get() && line.isOpen()) {
                 int n = line.read(buffer, 0, buffer.length);
-                if (n > 0) { out.write(buffer, 0, n); out.flush(); }
+                if (n < buffer.length) continue;
+
+                double levelSum = 0.0;
+                for (int i = 0; i < WINDOW_SIZE; i++) {
+                    int lo = buffer[i * 2] & 0xff;
+                    int hi = buffer[i * 2 + 1];
+                    short sample = (short)((hi << 8) | lo);
+                    float value = sample / 32768f;
+                    samples[i] = value;
+                    levelSum += Math.abs(value);
+                }
+                micLevel = (float)Math.min(1.0, levelSum / WINDOW_SIZE * 8.0);
+
+                vad.acceptWaveform(samples);
+
+                while (!vad.empty()) {
+                    SpeechSegment segment = vad.front();
+                    vad.pop();
+
+                    float[] speech = segment.getSamples();
+                    if (speech == null || speech.length < SAMPLE_RATE / 4) continue;
+
+                    status = "TRANSCRIBING";
+                    OfflineStream stream = recognizer.createStream();
+                    try {
+                        stream.acceptWaveform(speech, SAMPLE_RATE);
+                        recognizer.decode(stream);
+                        String text = recognizer.getResult(stream).getText();
+                        if (text != null) text = text.trim();
+
+                        if (text != null && !text.isBlank()) {
+                            lastHeard = text;
+                            listener.accept(text);
+                        }
+                    } finally {
+                        stream.release();
+                    }
+                    status = "LISTENING";
+                }
             }
         } catch (Throwable t) {
-            status = "VOICE ERROR";
+            lastError = t.getClass().getSimpleName()
+                    + (t.getMessage() == null ? "" : ": " + t.getMessage());
+            status = "MIC ERROR";
         } finally {
-            stop();
-            if (script != null) try { Files.deleteIfExists(script); } catch (Exception ignored) {}
+            running.set(false);
+            micLevel = 0f;
+
+            try {
+                if (micLine != null) {
+                    micLine.stop();
+                    micLine.close();
+                }
+            } catch (Throwable ignored) {}
+            micLine = null;
+
+            try { if (vad != null) vad.release(); } catch (Throwable ignored) {}
+            try { if (recognizer != null) recognizer.release(); } catch (Throwable ignored) {}
         }
     }
 
-    private TargetDataLine openMic(String wanted, DataLine.Info info, AudioFormat format) throws LineUnavailableException {
-        if (wanted != null && !wanted.isBlank() && !"System Default".equalsIgnoreCase(wanted)) {
+    private static Vad createVad(Path model) {
+        SileroVadModelConfig silero = SileroVadModelConfig.builder()
+                .setModel(model.toAbsolutePath().toString())
+                .setThreshold(0.45f)
+                .setMinSilenceDuration(0.35f)
+                .setMinSpeechDuration(0.20f)
+                .setWindowSize(WINDOW_SIZE)
+                .build();
+
+        VadModelConfig config = VadModelConfig.builder()
+                .setSileroVadModelConfig(silero)
+                .setSampleRate(SAMPLE_RATE)
+                .setNumThreads(1)
+                .setDebug(false)
+                .setProvider("cpu")
+                .build();
+
+        return new Vad(config);
+    }
+
+    private static OfflineRecognizer createRecognizer(Path dir) {
+        OfflineMoonshineModelConfig moonshine = OfflineMoonshineModelConfig.builder()
+                .setPreprocessor(dir.resolve("preprocess.onnx").toAbsolutePath().toString())
+                .setEncoder(dir.resolve("encode.int8.onnx").toAbsolutePath().toString())
+                .setUncachedDecoder(dir.resolve("uncached_decode.int8.onnx").toAbsolutePath().toString())
+                .setCachedDecoder(dir.resolve("cached_decode.int8.onnx").toAbsolutePath().toString())
+                .build();
+
+        OfflineModelConfig modelConfig = OfflineModelConfig.builder()
+                .setMoonshine(moonshine)
+                .setTokens(dir.resolve("tokens.txt").toAbsolutePath().toString())
+                .setNumThreads(Math.max(1, Math.min(3, Runtime.getRuntime().availableProcessors() / 3)))
+                .setDebug(false)
+                .build();
+
+        OfflineRecognizerConfig config = OfflineRecognizerConfig.builder()
+                .setOfflineModelConfig(modelConfig)
+                .setDecodingMethod("greedy_search")
+                .build();
+
+        return new OfflineRecognizer(config);
+    }
+
+    private TargetDataLine openMic(
+            String wanted,
+            DataLine.Info info,
+            AudioFormat format
+    ) throws LineUnavailableException {
+        if (wanted != null
+                && !wanted.isBlank()
+                && !"System Default".equalsIgnoreCase(wanted)) {
             for (Mixer.Info mi : AudioSystem.getMixerInfo()) {
-                if (mi.getName().equalsIgnoreCase(wanted)) {
-                    Mixer m = AudioSystem.getMixer(mi);
-                    if (m.isLineSupported(info)) return (TargetDataLine)m.getLine(info);
+                if (!mi.getName().equalsIgnoreCase(wanted)) continue;
+                Mixer mixer = AudioSystem.getMixer(mi);
+                if (mixer.isLineSupported(info)) {
+                    return (TargetDataLine)mixer.getLine(info);
                 }
             }
         }
         return AudioSystem.getTargetDataLine(format);
     }
 
-    private void readOutput(Process p) {
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
-            String line;
-            while (running.get() && (line = br.readLine()) != null) {
-                if (line.equals("__READY__")) status = "LISTENING";
-                else if (line.startsWith("HEARD:")) {
-                    String heard = line.substring(6).trim();
-                    if (!heard.isBlank()) { lastHeard = heard; listener.accept(heard); }
-                }
-            }
-        } catch (Exception ignored) {}
+    private void ensureModels(Path root, Path modelDir, Path vadFile) throws Exception {
+        Files.createDirectories(root);
+
+        if (!Files.exists(vadFile)) {
+            status = "DOWNLOADING MIC VAD";
+            download(VAD_URL, vadFile);
+        }
+
+        if (!Files.exists(modelDir.resolve("tokens.txt"))
+                || !Files.exists(modelDir.resolve("encode.int8.onnx"))) {
+            status = "DOWNLOADING MIC MODEL";
+            Path archive = root.resolve("moonshine-asr.tar.bz2");
+            download(ASR_URL, archive);
+            extractTarBz2(archive, root);
+            Files.deleteIfExists(archive);
+        }
+
+        if (!Files.exists(modelDir.resolve("tokens.txt"))) {
+            throw new FileNotFoundException("Speech model did not extract correctly");
+        }
     }
 
-    private String powershellScript() {
-        return String.join("\n",
-                "Add-Type -AssemblyName System.Speech",
-                "$sampleRate = [int]$args[0]",
-                "$confidence = [double]::Parse($args[1], [Globalization.CultureInfo]::InvariantCulture)",
-                "$recognizer = New-Object System.Speech.Recognition.SpeechRecognitionEngine",
-                "$bits = [System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen",
-                "$channels = [System.Speech.AudioFormat.AudioChannel]::Mono",
-                "$format = New-Object System.Speech.AudioFormat.SpeechAudioFormatInfo($sampleRate, $bits, $channels)",
-                "$recognizer.SetInputToAudioStream([Console]::OpenStandardInput(), $format)",
-                "$grammar = New-Object System.Speech.Recognition.DictationGrammar",
-                "$recognizer.LoadGrammar($grammar)",
-                "Write-Output '__READY__'",
-                "[Console]::Out.Flush()",
-                "while ($true) {",
-                "  try {",
-                "    $result = $recognizer.Recognize([TimeSpan]::FromMilliseconds(1100))",
-                "    if ($null -ne $result -and $result.Confidence -ge $confidence) {",
-                "      Write-Output ('HEARD:' + $result.Text)",
-                "      [Console]::Out.Flush()",
-                "    }",
-                "  } catch { Start-Sleep -Milliseconds 80 }",
-                "}"
-        );
+    private static void download(String url, Path out) throws Exception {
+        Path tmp = out.resolveSibling(out.getFileName() + ".part");
+
+        HttpURLConnection con = (HttpURLConnection)URI.create(url).toURL().openConnection();
+        con.setInstanceFollowRedirects(true);
+        con.setConnectTimeout(15000);
+        con.setReadTimeout(60000);
+        con.setRequestProperty("User-Agent", "SURV-OS/4.3");
+
+        int code = con.getResponseCode();
+        if (code < 200 || code >= 300) {
+            throw new IOException("HTTP " + code);
+        }
+
+        try (InputStream in = con.getInputStream();
+             OutputStream outStream = Files.newOutputStream(
+                     tmp,
+                     StandardOpenOption.CREATE,
+                     StandardOpenOption.TRUNCATE_EXISTING)) {
+            byte[] buf = new byte[262144];
+            int n;
+            while ((n = in.read(buf)) > 0) outStream.write(buf, 0, n);
+        } finally {
+            con.disconnect();
+        }
+
+        Files.move(tmp, out, StandardCopyOption.REPLACE_EXISTING);
+    }
+
+    private static void extractTarBz2(Path archive, Path destination) throws Exception {
+        if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")) {
+            throw new IOException("Automatic speech model extraction currently requires Windows tar.exe");
+        }
+
+        Process p = new ProcessBuilder(
+                "tar.exe",
+                "-xf",
+                archive.toAbsolutePath().toString(),
+                "-C",
+                destination.toAbsolutePath().toString()
+        ).redirectErrorStream(true).start();
+
+        try (BufferedReader br = new BufferedReader(
+                new InputStreamReader(p.getInputStream()))) {
+            while (br.readLine() != null) {}
+        }
+
+        if (p.waitFor() != 0) {
+            throw new IOException("tar.exe could not extract speech model");
+        }
     }
 }
