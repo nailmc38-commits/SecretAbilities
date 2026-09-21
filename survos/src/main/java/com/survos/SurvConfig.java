@@ -34,6 +34,7 @@ public final class SurvConfig {
     public boolean hudRight = false;
     public int maxHudLines = 10;
     public boolean smartAlerts = true;
+    public boolean spectatorWarnings = true;
     public boolean autoEatSafety = true;
     public boolean lowHealthSafety = true;
     public float retreatHealth = 8.0f;
