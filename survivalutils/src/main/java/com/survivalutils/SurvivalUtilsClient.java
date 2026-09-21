@@ -36,6 +36,7 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         CONFIG.load();
+        SeedCrackerShortcut.register();
 
         menuKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.survivalutils.menu",
