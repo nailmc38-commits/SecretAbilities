@@ -148,7 +148,7 @@ public final class LocalAiService {
 
                 HttpRequest request = HttpRequest.newBuilder()
                         .uri(URI.create("http://127.0.0.1:" + PORT + "/v1/chat/completions"))
-                        .timeout(Duration.ofSeconds(45))
+                        .timeout(Duration.ofSeconds(20))
                         .header("Content-Type", "application/json")
                         .POST(HttpRequest.BodyPublishers.ofString(GSON.toJson(req), StandardCharsets.UTF_8))
                         .build();
@@ -212,13 +212,18 @@ queue_task(mode,target?,count?) | return_start | stop_task | pause_task | resume
 move_player(direction,seconds) | turn_player(degrees) | jump | use_item | eat | select_item(item)
 look_hostile(range?) | attack_hostile(range?)
 set_profile(name) | add_rule(type,value,item?) | clear_rules
-save_waypoint(name) | go_waypoint(name) | start_route_recording(name) | stop_route_recording
+save_waypoint(name) | go_waypoint(name) | navigate_to(x,y,z) | start_route_recording(name) | stop_route_recording | play_route(name)
+play_mode(enabled) | remember(text) | recall(query)
 apply_loadout(name)
 set_villager_target(enchantment,min_level?,max_price?,delay_ms?,start?)
 toggle_villager | enchant_item(enchants) | craft_item(item,count?,max?)
 set_hud(module,enabled) | find_storage(item) | session_stats
 
 Use tools when the user asks you to do something in-game. Never claim an action happened without the matching tool.
+If the user says play the game, take over, autopilot, or play for me, use play_mode enabled=true.
+If the user says stop playing or give control back, use play_mode enabled=false.
+If the user gives coordinates, use navigate_to.
+If the user asks you to remember something, use remember. If they ask what you remember, use recall.
 No anti-cheat bypass, hidden/x-ray knowledge, admin/server commands, or OS commands.
 
 STATE:
