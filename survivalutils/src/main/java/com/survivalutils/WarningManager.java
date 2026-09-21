@@ -131,10 +131,47 @@ public final class WarningManager {
                 String name = entry.getProfile().name();
                 if (name == null || name.equalsIgnoreCase(self)) continue;
 
+                String extra = "";
+                var visible = client.world.getPlayers().stream()
+                        .filter(other -> other != p && other.getGameProfile().name().equalsIgnoreCase(name))
+                        .findFirst()
+                        .orElse(null);
+
+                if (visible != null) {
+                    double distance = Math.sqrt(p.squaredDistanceTo(visible));
+                    extra = " // " + String.format(java.util.Locale.ROOT, "%.1fm away", distance);
+                }
+
                 push(client, "spec:" + name,
-                        "WARNING // " + name + " is in spectator mode.",
+                        "WARNING // [SPEC] " + name + extra + " // spectator detected.",
                         Severity.DANGER);
                 break;
+            }
+        }
+
+        if (cfg.isEnabled(Feature.PLAYER_PROXIMITY_ALERT)) {
+            var nearest = client.world.getPlayers().stream()
+                    .filter(other -> other != p)
+                    .filter(other -> other.squaredDistanceTo(p)
+                            <= cfg.playerRadarRadius * cfg.playerRadarRadius)
+                    .min(java.util.Comparator.comparingDouble(p::squaredDistanceTo))
+                    .orElse(null);
+
+            if (nearest != null) {
+                boolean spectator = false;
+                if (client.getNetworkHandler() != null) {
+                    var info = client.getNetworkHandler().getPlayerListEntry(nearest.getUuid());
+                    spectator = info != null && info.getGameMode() == GameMode.SPECTATOR;
+                }
+
+                if (!spectator) {
+                    String name = nearest.getGameProfile().name();
+                    double distance = Math.sqrt(p.squaredDistanceTo(nearest));
+                    push(client, "player:" + name,
+                            "PLAYER NEAR // " + name + " // "
+                                    + String.format(java.util.Locale.ROOT, "%.1fm", distance),
+                            Severity.CAUTION);
+                }
             }
         }
 
