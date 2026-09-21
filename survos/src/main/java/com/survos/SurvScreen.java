@@ -361,7 +361,12 @@ public final class SurvScreen extends Screen {
                 "WAYPOINTS  " + trim(SurvOsClient.MEMORY.waypointDetails(), 72),
                 () -> {}, false);
 
-        int row = y + 264;
+        addScrollingButton(x + 12, y + 252, w - 24,
+                "SEEDCRACKERX 2.15.6  //  /seedcracker gui",
+                () -> SurvOsClient.notice("SeedCrackerX is bundled. Use /seedcracker gui."),
+                true);
+
+        int row = y + 298;
         addScrollingButton(x + 12, row, half, "SET HOME HERE",
                 () -> SurvOsClient.MEMORY.setWaypoint(client, "home"), true);
         addScrollingButton(x + half + 18, row, half, "GO HOME",
@@ -857,7 +862,7 @@ public final class SurvScreen extends Screen {
             case AI -> 350;
             case TAKEOVER -> 350;
             case AUTOMATION -> 320;
-            case TOOLS -> 500;
+            case TOOLS -> 540;
             case DASHBOARD -> 260;
         };
         return Math.max(0, content - viewport);
