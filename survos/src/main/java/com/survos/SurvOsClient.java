@@ -499,21 +499,6 @@ public final class SurvOsClient implements ClientModInitializer {
         if (client.player == null || client.world == null) return "No world loaded.";
 
         var p = client.player;
-        LinkedHashMap<String, Integer> counts = new LinkedHashMap<>();
-        for (int i = 0; i < p.getInventory().size(); i++) {
-            ItemStack stack = p.getInventory().getStack(i);
-            if (stack.isEmpty()) continue;
-            String id = Registries.ITEM.getId(stack.getItem()).getPath();
-            counts.merge(id, stack.getCount(), Integer::sum);
-        }
-
-        StringBuilder inv = new StringBuilder();
-        int shown = 0;
-        for (var e : counts.entrySet()) {
-            if (shown++ >= 10) break;
-            if (!inv.isEmpty()) inv.append(", ");
-            inv.append(e.getKey()).append(" x").append(e.getValue());
-        }
 
         int hostile = client.world.getEntitiesByClass(
                 HostileEntity.class,
@@ -526,41 +511,68 @@ public final class SurvOsClient implements ClientModInitializer {
                 : Registries.ITEM.getId(p.getMainHandStack().getItem()).getPath()
                 + " (" + InventoryManager.durabilityPercent(p.getMainHandStack()) + "% durability)";
 
+        String biome = client.world.getBiome(p.getBlockPos())
+                .getKey()
+                .map(k -> k.getValue().getPath())
+                .orElse("unknown");
+
+        String weather = client.world.isThundering()
+                ? "thunder"
+                : (client.world.isRaining() ? "rain" : "clear");
+
         return """
-Player:
+PLAYER
 health=%.1f/%.1f
 food=%d/20
 armor=%d/20
 xp_level=%d
 position=%d,%d,%d
 dimension=%s
+biome=%s
+light=%d
+weather=%s
 held_item=%s
 free_inventory_slots=%d
 nearby_hostiles=%d
 
-Automation:
+HOTBAR
+%s
+
+EQUIPMENT
+%s
+
+FULL INVENTORY
+%s
+
+VISIBLE IMPORTANT BLOCKS
+%s
+
+AUTOMATION
 mode=%s
 state=%s
 reason=%s
 goal=%s %d
 queued_tasks=%d
-play_mode=%s
-play_phase=%s
-play_status=%s
 
-Rules:
+PLAY
+enabled=%s
+phase=%s
+status=%s
+directive=%s
+
+RULES
 %s
 
-Waypoints:
+SAVED LOCATIONS
 %s
 
-Remembered routes:
+ROUTES
 %s
 
-Inventory summary:
-%s
+REMEMBERED STORAGE
+known_container_hits_for_diamond=%s
 
-Session:
+SESSION
 %s
 """.formatted(
                 p.getHealth(), p.getMaxHealth(),
@@ -569,9 +581,16 @@ Session:
                 p.experienceLevel,
                 p.getBlockX(), p.getBlockY(), p.getBlockZ(),
                 client.world.getRegistryKey().getValue(),
+                biome,
+                client.world.getLightLevel(p.getBlockPos()),
+                weather,
                 held,
                 InventoryManager.freeSlots(p),
                 hostile,
+                InventoryManager.hotbarSummary(p),
+                InventoryManager.equipmentSummary(p),
+                InventoryManager.fullSummary(p),
+                WorldScanner.nearbySummary(client, 10),
                 AUTOMATION.mode(),
                 AUTOMATION.state(),
                 AUTOMATION.reason(),
@@ -581,10 +600,11 @@ Session:
                 PLAY.enabled(),
                 PLAY.phase(),
                 PLAY.status(),
+                PLAY.directiveStatus(),
                 RULES.all(),
-                MEMORY.waypointNames(),
+                MEMORY.waypointDetails(),
                 MEMORY.routeNames(),
-                inv,
+                MEMORY.containersWith("diamond"),
                 STATS.summary()
         );
     }
