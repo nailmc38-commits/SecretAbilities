@@ -204,13 +204,13 @@ public final class SurvOsClient implements ClientModInitializer {
         }
 
         if (CONFIG.spectatorWarnings && client.getNetworkHandler() != null) {
-            String self = client.player.getGameProfile().getName();
+            String self = client.player.getGameProfile().name();
             long now = System.currentTimeMillis();
 
             for (var entry : client.getNetworkHandler().getPlayerList()) {
                 if (entry.getGameMode() != GameMode.SPECTATOR) continue;
 
-                String name = entry.getProfile().getName();
+                String name = entry.getProfile().name();
                 if (name == null || name.equalsIgnoreCase(self)) continue;
 
                 long nextAllowed = SPECTATOR_WARN_COOLDOWN.getOrDefault(name, 0L);
