@@ -14,6 +14,7 @@ import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.entity.mob.HostileEntity;
+import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.item.ItemStack;
 import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
@@ -674,18 +675,31 @@ Session:
 
     private static void renderHud(DrawContext ctx, RenderTickCounter counter) {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (!CONFIG.hudEnabled || client.player == null || client.world == null || client.textRenderer == null) return;
+        if (!CONFIG.hudEnabled
+                || client.player == null
+                || client.world == null
+                || client.textRenderer == null) return;
 
+        renderMainHud(ctx, client);
+        renderStatsHud(ctx, client);
+        renderHelmetHud(ctx, client);
+    }
+
+    private static void renderMainHud(DrawContext ctx, MinecraftClient client) {
         List<Line> lines = new ArrayList<>();
         var p = client.player;
 
-        if (CONFIG.showHealth)
+        if (CONFIG.showHealth) {
             lines.add(new Line(
-                    String.format("HP %.1f/%.1f", p.getHealth(), p.getMaxHealth()),
+                    String.format(Locale.ROOT, "HP %.1f/%.1f", p.getHealth(), p.getMaxHealth()),
                     p.getHealth() <= CONFIG.retreatHealth ? 0xFFFF5D5D : 0xFF7CFFB2));
+        }
 
         if (CONFIG.showHunger)
             lines.add(new Line("FOOD " + p.getHungerManager().getFoodLevel() + "/20", 0xFFFFD36A));
+
+        if (CONFIG.showFoodCount)
+            lines.add(new Line("FOOD ITEMS " + InventoryManager.foodCount(p), 0xFFFFC96A));
 
         if (CONFIG.showArmor)
             lines.add(new Line("ARMOR " + p.getArmor() + "/20", 0xFF8BE9FD));
@@ -703,8 +717,36 @@ Session:
                     "DIM " + client.world.getRegistryKey().getValue().getPath(),
                     0xFF9FAEC0));
 
+        if (CONFIG.showBiome) {
+            String biome = client.world.getBiome(p.getBlockPos())
+                    .getKey()
+                    .map(k -> k.getValue().getPath())
+                    .orElse("unknown");
+            lines.add(new Line("BIOME " + biome, 0xFF9FD7B7));
+        }
+
+        if (CONFIG.showLight)
+            lines.add(new Line("LIGHT " + client.world.getLightLevel(p.getBlockPos()), 0xFFFFE58A));
+
         if (CONFIG.showDayNight)
             lines.add(new Line(dayNight(client), 0xFF7DE3FF));
+
+        if (CONFIG.showWeather) {
+            String weather = client.world.isThundering()
+                    ? "THUNDER"
+                    : (client.world.isRaining() ? "RAIN" : "CLEAR");
+            lines.add(new Line("WEATHER " + weather, 0xFF8EC6FF));
+        }
+
+        if (CONFIG.showEffects)
+            lines.add(new Line("EFFECTS " + p.getStatusEffects().size(), 0xFFD9A7FF));
+
+        if (CONFIG.showHeldItem) {
+            ItemStack held = p.getMainHandStack();
+            lines.add(new Line(
+                    "HELD " + (held.isEmpty() ? "empty" : held.getName().getString()),
+                    0xFFC6D3DB));
+        }
 
         if (CONFIG.showDurability) {
             ItemStack held = p.getMainHandStack();
@@ -723,12 +765,19 @@ Session:
                     free <= 2 ? 0xFFFF6B6B : 0xFFB7C7D6));
         }
 
+        if (CONFIG.showTotems)
+            lines.add(new Line(
+                    "TOTEMS " + InventoryManager.count(p, "totem_of_undying"),
+                    0xFFFFD98A));
+
+        if (CONFIG.showArrows)
+            lines.add(new Line(
+                    "ARROWS " + InventoryManager.count(p, "arrow"),
+                    0xFFD8E0E6));
+
+        int hostile = nearbyHostiles(client, 16);
+
         if (CONFIG.showHostiles) {
-            int hostile = client.world.getEntitiesByClass(
-                    HostileEntity.class,
-                    p.getBoundingBox().expand(16),
-                    e -> e.isAlive()
-            ).size();
             String threat;
             int threatColor;
             if (hostile == 0) {
@@ -747,9 +796,24 @@ Session:
             lines.add(new Line("THREAT " + threat, threatColor));
         }
 
-        if (PLAY.enabled()) {
-            lines.add(new Line("PLAY " + PLAY.phase() + " // " + PLAY.status(), 0xFFFFD76A));
+        if (CONFIG.showNearbyPlayers) {
+            long players = client.world.getPlayers().stream()
+                    .filter(x -> x != p && x.squaredDistanceTo(p) <= 32 * 32)
+                    .count();
+            lines.add(new Line("PLAYERS NEAR " + players, 0xFF9DD0FF));
         }
+
+        if (CONFIG.showFps)
+            lines.add(new Line("FPS " + client.getCurrentFps(), 0xFF9AF0D2));
+
+        if (CONFIG.showPing && client.getNetworkHandler() != null) {
+            var entry = client.getNetworkHandler().getPlayerListEntry(p.getUuid());
+            if (entry != null)
+                lines.add(new Line("PING " + entry.getLatency() + "ms", 0xFF9FB4C0));
+        }
+
+        if (PLAY.enabled())
+            lines.add(new Line("PLAY " + PLAY.phase() + " // " + PLAY.status(), 0xFFFFD76A));
 
         if (CONFIG.showAutomation) {
             String auto = "AUTO " + AUTOMATION.mode() + " // " + AUTOMATION.state();
@@ -759,13 +823,19 @@ Session:
             }
             lines.add(new Line(auto, AUTOMATION.active() ? 0xFF64F2FF : 0xFF66727D));
 
-            if (CONFIG.showGoalRate && !AUTOMATION.goalItem().isBlank() && AUTOMATION.goalCount() > 0) {
+            if (CONFIG.showGoalRate
+                    && !AUTOMATION.goalItem().isBlank()
+                    && AUTOMATION.goalCount() > 0) {
                 int have = InventoryManager.count(p, AUTOMATION.goalItem());
                 int remaining = Math.max(0, AUTOMATION.goalCount() - have);
                 double rate = STATS.perHour(AUTOMATION.goalItem());
                 String rateText = rate < 0.1
                         ? "RATE learning…"
-                        : String.format(Locale.ROOT, "RATE %.1f/h // ETA %s", rate, STATS.eta(AUTOMATION.goalItem(), remaining));
+                        : String.format(
+                                Locale.ROOT,
+                                "RATE %.1f/h // ETA %s",
+                                rate,
+                                STATS.eta(AUTOMATION.goalItem(), remaining));
                 lines.add(new Line(rateText, 0xFF9FC6D8));
             }
         }
@@ -775,44 +845,224 @@ Session:
                     "VOICE " + VOICE.status() + " // AI " + AI.status(),
                     AI.ready() ? 0xFF63FFF2 : 0xFF91A0AD));
 
+        if (CONFIG.showMemory)
+            lines.add(new Line(
+                    "MEM " + CHAT_MEMORY.noteCount() + " notes // "
+                            + MEMORY.waypointNames().size() + " wp",
+                    0xFFB7A7FF));
+
         int count = Math.min(CONFIG.maxHudLines, lines.size());
-        int y = 7, lineH = 11, pad = 4, widest = 0;
-        for (int i = 0; i < count; i++) {
-            widest = Math.max(widest, client.textRenderer.getWidth(lines.get(i).text));
+        renderPanel(
+                ctx,
+                client,
+                CONFIG.hudRight,
+                7,
+                "SURV // " + CONFIG.profile,
+                lines.subList(0, count),
+                themeAccent());
+    }
+
+    private static void renderStatsHud(DrawContext ctx, MinecraftClient client) {
+        if (!CONFIG.statsHudEnabled || client.player == null) return;
+
+        List<Line> stats = new ArrayList<>();
+        var p = client.player;
+
+        if (CONFIG.statsShowSessionTime)
+            stats.add(new Line(
+                    "SESSION " + (STATS.seconds() / 60) + "m " + (STATS.seconds() % 60) + "s",
+                    0xFFB9C6D0));
+
+        if (CONFIG.statsShowDistance)
+            stats.add(new Line("DIST " + (int)STATS.distance() + "m", 0xFF89E7FF));
+
+        if (CONFIG.statsShowBlocksMined)
+            stats.add(new Line("MINED " + STATS.blocksMined(), 0xFFC6E58A));
+
+        if (CONFIG.statsShowMobHits)
+            stats.add(new Line("MOB HITS " + STATS.mobsHit(), 0xFFFF9D8D));
+
+        if (CONFIG.statsShowInventoryFree)
+            stats.add(new Line("FREE SLOTS " + InventoryManager.freeSlots(p), 0xFFB5C2CC));
+
+        if (CONFIG.statsShowPlayPhase)
+            stats.add(new Line(
+                    "PLAY " + (PLAY.enabled() ? PLAY.phase() : "OFF"),
+                    PLAY.enabled() ? 0xFFFFD76A : 0xFF697782));
+
+        if (CONFIG.statsShowCurrentTask)
+            stats.add(new Line(
+                    "TASK " + AUTOMATION.mode() + " / " + AUTOMATION.state(),
+                    AUTOMATION.active() ? 0xFF64F2FF : 0xFF697782));
+
+        if (CONFIG.statsShowGoalRate
+                && !AUTOMATION.goalItem().isBlank()
+                && AUTOMATION.goalCount() > 0) {
+            int have = InventoryManager.count(p, AUTOMATION.goalItem());
+            int remaining = Math.max(0, AUTOMATION.goalCount() - have);
+            stats.add(new Line(
+                    "GOAL " + have + "/" + AUTOMATION.goalCount()
+                            + " // " + STATS.eta(AUTOMATION.goalItem(), remaining),
+                    0xFF9FC6D8));
         }
 
-        int boxW = widest + pad * 2;
-        int boxH = count * lineH + pad * 2 + 10;
-        int left = CONFIG.hudRight ? ctx.getScaledWindowWidth() - boxW - 7 : 7;
+        if (stats.isEmpty()) return;
+
+        renderPanel(
+                ctx,
+                client,
+                false,
+                Math.max(92, ctx.getScaledWindowHeight() / 3),
+                "SURV // STATS",
+                stats,
+                0xFF87BFFF);
+    }
+
+    private static void renderHelmetHud(DrawContext ctx, MinecraftClient client) {
+        if (!CONFIG.helmetHudEnabled || client.player == null) return;
+
+        var p = client.player;
+        ItemStack helmet = p.getEquippedStack(EquipmentSlot.HEAD);
+        if (helmet.isEmpty()) return;
+
+        List<Line> data = new ArrayList<>();
+
+        if (CONFIG.helmetShowHelmet) {
+            String text = "HELM " + helmet.getName().getString();
+            if (helmet.isDamageable()) {
+                text += " " + InventoryManager.durabilityPercent(helmet) + "%";
+            }
+            data.add(new Line(text, 0xFF8EEAFF));
+        }
+
+        if (CONFIG.helmetShowThreat) {
+            int hostiles = nearbyHostiles(client, 12);
+            data.add(new Line(
+                    hostiles == 0 ? "SCAN CLEAR" : "THREAT " + hostiles,
+                    hostiles == 0 ? 0xFF75F0A4 : 0xFFFF7878));
+        }
+
+        if (CONFIG.helmetShowCoords)
+            data.add(new Line(
+                    "NAV " + p.getBlockX() + " " + p.getBlockY() + " " + p.getBlockZ(),
+                    0xFFC9E6F2));
+
+        if (CONFIG.helmetShowTask)
+            data.add(new Line(
+                    PLAY.enabled()
+                            ? "PLAY " + PLAY.phase()
+                            : "AUTO " + AUTOMATION.mode() + " / " + AUTOMATION.state(),
+                    0xFFFFD76A));
+
+        if (CONFIG.helmetShowDurability) {
+            ItemStack held = p.getMainHandStack();
+            if (!held.isEmpty() && held.isDamageable()) {
+                data.add(new Line(
+                        "TOOL " + InventoryManager.durabilityPercent(held) + "%",
+                        0xFFB7C7D6));
+            }
+        }
+
+        if (CONFIG.helmetShowVoice)
+            data.add(new Line(
+                    "LINK " + VOICE.status() + " / " + AI.backendName(),
+                    0xFF6CF7E8));
+
+        if (CONFIG.helmetShowTime)
+            data.add(new Line(dayNight(client), 0xFF84D7FF));
+
+        int width = 0;
+        for (Line line : data) {
+            width = Math.max(width, client.textRenderer.getWidth(line.text));
+        }
+
+        int pad = 5;
+        int lineH = 11;
+        int boxW = Math.max(180, width + pad * 2);
+        int boxH = data.size() * lineH + 21;
+        int left = (ctx.getScaledWindowWidth() - boxW) / 2;
+        int top = 7;
         int right = left + boxW;
 
         int accent = themeAccent();
+        ctx.fill(left, top, right, top + boxH, 0x8A050B10);
+        ctx.fill(left, top, right, top + 2, accent);
+        ctx.fill(left, top, left + 2, top + boxH, 0x554CE8E2);
+        ctx.fill(right - 2, top, right, top + boxH, 0x554CE8E2);
+
+        ctx.drawCenteredTextWithShadow(
+                client.textRenderer,
+                "HELM // SURV LINK",
+                (left + right) / 2,
+                top + 5,
+                accent);
+
+        int y = top + 17;
+        for (Line line : data) {
+            ctx.drawCenteredTextWithShadow(
+                    client.textRenderer,
+                    line.text,
+                    (left + right) / 2,
+                    y,
+                    line.color);
+            y += lineH;
+        }
+    }
+
+    private static int nearbyHostiles(MinecraftClient client, double radius) {
+        if (client.player == null || client.world == null) return 0;
+        return client.world.getEntitiesByClass(
+                HostileEntity.class,
+                client.player.getBoundingBox().expand(radius),
+                e -> e.isAlive()).size();
+    }
+
+    private static void renderPanel(
+            DrawContext ctx,
+            MinecraftClient client,
+            boolean rightSide,
+            int y,
+            String title,
+            List<Line> lines,
+            int accent
+    ) {
+        if (lines == null || lines.isEmpty()) return;
+
+        int lineH = 11;
+        int pad = 4;
+        int widest = client.textRenderer.getWidth(title);
+
+        for (Line l : lines) {
+            widest = Math.max(widest, client.textRenderer.getWidth(l.text));
+        }
+
+        int boxW = widest + pad * 2;
+        int boxH = lines.size() * lineH + pad * 2 + 10;
+        int left = rightSide
+                ? ctx.getScaledWindowWidth() - boxW - 7
+                : 7;
+        int right = left + boxW;
+
         ctx.fill(left, y, right, y + boxH, 0xB5091118);
         ctx.fill(left, y, right, y + 2, accent);
         ctx.drawText(
                 client.textRenderer,
-                "SURV // " + CONFIG.profile,
-                left + pad, y + 5,
+                title,
+                left + pad,
+                y + 5,
                 accent,
-                true
-        );
+                true);
 
         int ty = y + 16;
-        for (int i = 0; i < count; i++) {
-            Line l = lines.get(i);
-            ctx.drawText(client.textRenderer, l.text, left + pad, ty, l.color, true);
-            ty += lineH;
-        }
-
-        if (CONFIG.debugAutomation && AUTOMATION.active()) {
+        for (Line l : lines) {
             ctx.drawText(
                     client.textRenderer,
-                    AUTOMATION.reason(),
+                    l.text,
                     left + pad,
-                    y + boxH + 3,
-                    0xFF9FAEC0,
-                    true
-            );
+                    ty,
+                    l.color,
+                    true);
+            ty += lineH;
         }
     }
 
