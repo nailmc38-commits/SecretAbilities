@@ -64,6 +64,7 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
             }
         }
 
+        ServerProfileManager.tick(client);
         STATS.tick(client);
         AUTO_CLUTCH.tick(client);
         ThreatMemoryManager.tick(client);
