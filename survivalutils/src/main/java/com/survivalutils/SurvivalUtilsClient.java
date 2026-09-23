@@ -67,6 +67,7 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
         AUTO_CLUTCH.tick(client);
         WARNINGS.tick(client);
         SurvMegaState.tick(client);
+        MobControlManager.tick(client);
     }
 
     private static void renderHud(DrawContext ctx, RenderTickCounter counter) {
