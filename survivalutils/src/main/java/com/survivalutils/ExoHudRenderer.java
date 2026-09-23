@@ -78,12 +78,13 @@ public final class ExoHudRenderer {
 
     private static void renderVitals(DrawContext ctx,MinecraftClient c,boolean compact) {
         PlayerEntity p=c.player;
-        int x=18;
-        int y=compact?24:38;
         int width=compact?150:185;
+        int height=compact?58:72;
+        PanelPos pos=beginPanel(ctx,"core",width,height);
+        int x=pos.x(), y=pos.y();
         int row=compact?11:13;
 
-        ctx.fill(x,y,x+width,y+(compact?58:72),0xB20A0E10);
+        ctx.fill(x,y,x+width,y+height,HudLayoutManager.alpha("core",0xB20A0E10));
         ctx.fill(x,y,x+3,y+(compact?58:72),0xFF62D9E8);
 
         line(ctx,c,x+8,y+7,"EXO // CORE",0xFF8BEAF4);
@@ -102,6 +103,7 @@ public final class ExoHudRenderer {
             line(ctx,c,x+8,y,"TOOL "+trim(tool,23),0xFFB9C9CC); y+=row;
             line(ctx,c,x+8,y,"TOTEM "+InventoryUtil.count(p,"totem_of_undying")+" // INV "+InventoryUtil.freeSlots(p)+" FREE",0xFF9FB7BC);
         }
+        endPanel(ctx);
     }
 
     private static void renderTopBar(DrawContext ctx,MinecraftClient c,boolean compact) {
@@ -122,11 +124,10 @@ public final class ExoHudRenderer {
     private static void renderAdvisor(DrawContext ctx,MinecraftClient c,boolean compact) {
         if(!ExoLinkData.SETTINGS.advisor)return;
         CombatAdvisor.Snapshot a=CombatAdvisor.current();
-        int w=ctx.getScaledWindowWidth();
         int width=compact?175:225;
-        int x=w-width-18;
-        int y=compact?24:38;
         int height=a.opponentType().equals("PLAYER")?(compact?82:118):(compact?58:78);
+        PanelPos pos=beginPanel(ctx,"advisor",width,height);
+        int x=pos.x(), y=pos.y();
 
         int accent=switch(a.recommendation()){
             case "DISENGAGE"->0xFFFF5C5C;
@@ -135,7 +136,7 @@ public final class ExoHudRenderer {
             default->0xFF62D9E8;
         };
 
-        ctx.fill(x,y,x+width,y+height,0xB20A0E10);
+        ctx.fill(x,y,x+width,y+height,HudLayoutManager.alpha("advisor",0xB20A0E10));
         ctx.fill(x+width-3,y,x+width,y+height,accent);
         line(ctx,c,x+8,y+7,"ADVISOR // "+a.recommendation(),accent);
         line(ctx,c,x+8,y+21,"TARGET "+trim(a.opponent(),18),0xFFDCEBED);
@@ -153,6 +154,7 @@ public final class ExoHudRenderer {
                 yy+=13;
             }
         }
+        endPanel(ctx);
     }
 
     private static void renderIdentify(DrawContext ctx,MinecraftClient c,boolean compact) {
@@ -177,32 +179,34 @@ public final class ExoHudRenderer {
 
         if(title.isBlank())return;
 
-        int w=ctx.getScaledWindowWidth(), h=ctx.getScaledWindowHeight();
         int boxW=compact?130:155;
-        int x=w/2+18, y=h/2+16;
-        ctx.fill(w/2+4,h/2+4,w/2+17,h/2+6,0xAA62D9E8);
-        ctx.fill(x,y,x+boxW,y+32,0xB10A0E10);
+        PanelPos pos=beginPanel(ctx,"identify",boxW,32);
+        int x=pos.x(), y=pos.y();
+        ctx.fill(x-14,y-12,x-1,y-10,0xAA62D9E8);
+        ctx.fill(x,y,x+boxW,y+32,HudLayoutManager.alpha("identify",0xB10A0E10));
         ctx.fill(x,y,x+2,y+32,0xFF62D9E8);
         line(ctx,c,x+7,y+6,trim(title,18),0xFFDDF8FA);
         line(ctx,c,x+7,y+18,trim(sub,22),0xFF9FB7BC);
+        endPanel(ctx);
     }
 
     private static void renderEscape(DrawContext ctx,MinecraftClient c,boolean compact) {
         EscapeVector.Result e=CombatAdvisor.current().escape();
         if(e==null||"NONE".equals(e.direction()))return;
 
-        int w=ctx.getScaledWindowWidth(), h=ctx.getScaledWindowHeight();
         String text="ESCAPE VECTOR // "+e.direction()+" // "+e.clearBlocks()+"m CLEAR";
         int tw=c.textRenderer.getWidth(text);
-        int x=(w-tw)/2;
-        int y=h-(compact?31:39);
-        ctx.fill(x-8,y-4,x+tw+8,y+12,0xB20A0E10);
+        PanelPos pos=beginPanel(ctx,"escape",tw+16,29);
+        int x=pos.x()+8;
+        int y=pos.y()+4;
+        ctx.fill(x-8,y-4,x+tw+8,y+12,HudLayoutManager.alpha("escape",0xB20A0E10));
         ctx.fill(x-8,y+12,x+tw+8,y+14,0xFF62D9E8);
         line(ctx,c,x,y,text,0xFFDDF8FA);
 
         String arrow=arrow(e.direction());
         int aw=c.textRenderer.getWidth(arrow);
-        line(ctx,c,(w-aw)/2,y-13,arrow,0xFF75ECF3);
+        line(ctx,c,x+(tw-aw)/2,y-13,arrow,0xFF75ECF3);
+        endPanel(ctx);
     }
 
     private static void renderPackMini(DrawContext ctx,MinecraftClient c,boolean compact) {
@@ -210,13 +214,14 @@ public final class ExoHudRenderer {
         PackManager.Status s=PackManager.status(c);
         if(s.known()==0)return;
 
-        int h=ctx.getScaledWindowHeight();
-        int x=18;
-        int y=h-(compact?47:62);
+        int panelW=compact?185:230;
+        PanelPos pos=beginPanel(ctx,"pack",panelW,29);
+        int x=pos.x(), y=pos.y();
         String line1="PACK // "+s.loaded()+" LOADED // "+s.sitting()+" SIT // "+s.standing()+" FOLLOW";
-        ctx.fill(x,y,x+(compact?185:230),y+29,0xA80A0E10);
+        ctx.fill(x,y,x+panelW,y+29,HudLayoutManager.alpha("pack",0xA80A0E10));
         line(ctx,c,x+7,y+6,trim(line1,compact?28:36),0xFFC7E4E7);
         line(ctx,c,x+7,y+18,"REACHABLE "+s.reachable()+" // "+s.activeOrder(),0xFF829A9E);
+        endPanel(ctx);
     }
 
     private static void renderEmergency(DrawContext ctx,MinecraftClient c,WarningManager.Warning warning) {
@@ -242,16 +247,17 @@ public final class ExoHudRenderer {
     private static void renderFlight(DrawContext ctx,MinecraftClient c,boolean compact) {
         if(ExoSuitSystems.effectiveMode(c)!=ExoSuitSystems.VisorMode.FLIGHT)return;
         ExoSuitSystems.Flight f=ExoSuitSystems.flight(c);
-        int w=ctx.getScaledWindowWidth();
         int boxW=compact?190:230;
-        int x=w-boxW-18;
-        int y=compact?118:170;
-        ctx.fill(x,y,x+boxW,y+(compact?50:63),0xAF0A0E10);
+        int boxH=compact?50:63;
+        PanelPos pos=beginPanel(ctx,"flight",boxW,boxH);
+        int x=pos.x(), y=pos.y();
+        ctx.fill(x,y,x+boxW,y+boxH,HudLayoutManager.alpha("flight",0xAF0A0E10));
         ctx.fill(x+boxW-3,y,x+boxW,y+(compact?50:63),f.pullUp()?0xFFFF4F4F:0xFF62D9E8);
         line(ctx,c,x+8,y+7,"FLIGHT COMPUTER",0xFF8BEAF4);
         line(ctx,c,x+8,y+20,String.format(Locale.ROOT,"SPD %.1f b/s // ALT %d",f.speed(),f.altitude()),0xFFC9DEE1);
         line(ctx,c,x+8,y+33,"ROCKETS "+f.rockets()+" // ELYTRA "+f.elytraDurability()+"%",0xFFAAC3C7);
         if(!compact&&f.pullUp())line(ctx,c,x+8,y+46,"PULL UP",0xFFFF5C5C);
+        endPanel(ctx);
     }
 
     private static void renderRecovery(DrawContext ctx,MinecraftClient c,boolean compact) {
@@ -263,10 +269,12 @@ public final class ExoHudRenderer {
         if(d<5)return;
         String text="RECOVERY // "+r.x()+" "+r.y()+" "+r.z()+" // "+String.format(Locale.ROOT,"%.0fm",d);
         int tw=c.textRenderer.getWidth(text);
-        int x=18,y=compact?92:126;
-        ctx.fill(x,y,x+tw+12,y+20,0xA90A0E10);
+        PanelPos pos=beginPanel(ctx,"recovery",tw+12,20);
+        int x=pos.x(), y=pos.y();
+        ctx.fill(x,y,x+tw+12,y+20,HudLayoutManager.alpha("recovery",0xA90A0E10));
         ctx.fill(x,y,x+3,y+20,0xFFFFB35A);
         line(ctx,c,x+7,y+6,text,0xFFFFCE8A);
+        endPanel(ctx);
     }
 
     private static void renderWarning(DrawContext ctx,MinecraftClient c,WarningManager.Warning warning,boolean compact) {
@@ -283,17 +291,34 @@ public final class ExoHudRenderer {
         String text=prefix+warning.text();
         int maxW=Math.min(w-80,compact?470:650);
         int tw=Math.min(maxW,c.textRenderer.getWidth(text)+22);
-        int x=(w-tw)/2;
-        int y=compact?23:27;
+        PanelPos pos=beginPanel(ctx,"warning",tw,24);
+        int x=pos.x(), y=pos.y();
 
-        ctx.fill(x,y,x+tw,y+24,0xD80A0C0E);
+        ctx.fill(x,y,x+tw,y+24,HudLayoutManager.alpha("warning",0xD80A0C0E));
         ctx.fill(x,y,x+tw,y+3,color);
         ctx.fill(x,y,x+3,y+24,color);
         ctx.fill(x+tw-3,y,x+tw,y+24,color);
 
         String shown=trimToWidth(c,text,tw-14);
         int sw=c.textRenderer.getWidth(shown);
-        line(ctx,c,(w-sw)/2,y+8,shown,color);
+        line(ctx,c,x+(tw-sw)/2,y+8,shown,color);
+        endPanel(ctx);
+    }
+
+    private record PanelPos(int x,int y,float scale) {}
+
+    private static PanelPos beginPanel(DrawContext ctx,String key,int width,int height) {
+        HudLayoutManager.Panel p=HudLayoutManager.panel(key);
+        float scale=(float)p.scale;
+        int px=HudLayoutManager.x(key,ctx.getScaledWindowWidth(),width);
+        int py=HudLayoutManager.y(key,ctx.getScaledWindowHeight(),height);
+        ctx.getMatrices().pushMatrix();
+        ctx.getMatrices().scale(scale,scale);
+        return new PanelPos((int)Math.round(px/scale),(int)Math.round(py/scale),scale);
+    }
+
+    private static void endPanel(DrawContext ctx) {
+        ctx.getMatrices().popMatrix();
     }
 
     private static String arrow(String dir) {
