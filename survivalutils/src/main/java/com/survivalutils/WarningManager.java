@@ -3,6 +3,8 @@ package com.survivalutils;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.TntEntity;
+import net.minecraft.entity.projectile.ProjectileEntity;
 import net.minecraft.entity.mob.CreeperEntity;
 import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.entity.mob.SkeletonEntity;
@@ -13,6 +15,7 @@ import net.minecraft.registry.tag.FluidTags;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.GameMode;
 
 import java.util.ArrayList;
@@ -95,6 +98,33 @@ public final class WarningManager {
                 "MULTIPLE HOSTILES // "+hostiles.size()+" NEARBY",Severity.DANGER,76);
         add(found,"surrounded",hostiles.size()>=5&&EscapeVector.calculate(client).clearBlocks()<5,
                 "SURROUNDED // ESCAPE VECTOR LIMITED",Severity.CRITICAL,93);
+
+        HostileEntity targeting=hostiles.stream()
+                .filter(h->h.getTarget()==p)
+                .min(Comparator.comparingDouble(p::squaredDistanceTo)).orElse(null);
+        if(targeting!=null) add(found,"mob_targeting_you",true,
+                "TARGETED // "+targeting.getName().getString()+" // "+fmt(Math.sqrt(p.squaredDistanceTo(targeting))),
+                Severity.CAUTION,63);
+
+        ProjectileEntity projectile=client.world.getEntitiesByClass(
+                ProjectileEntity.class,p.getBoundingBox().expand(18),Entity::isAlive)
+                .stream()
+                .filter(pr->pr.getOwner()!=p)
+                .filter(pr->isApproaching(p,pr))
+                .min(Comparator.comparingDouble(p::squaredDistanceTo)).orElse(null);
+        if(projectile!=null) {
+            double pd=Math.sqrt(p.squaredDistanceTo(projectile));
+            add(found,"projectile_near",true,
+                    "PROJECTILE APPROACHING // "+fmt(pd),pd<=5?Severity.DANGER:Severity.CAUTION,pd<=5?85:66);
+        }
+
+        TntEntity tnt=nearest(client,TntEntity.class,9);
+        if(tnt!=null) {
+            double td=Math.sqrt(p.squaredDistanceTo(tnt));
+            add(found,"explosion_near",true,
+                    "PRIMED TNT // "+fmt(td)+" // FUSE "+String.format(Locale.ROOT,"%.1fs",tnt.getFuse()/20.0),
+                    td<=5?Severity.CRITICAL:Severity.DANGER,td<=5?96:86);
+        }
 
         HostileEntity behindHostile=hostiles.stream()
                 .filter(h->isBehind(p,h))
@@ -261,6 +291,13 @@ public final class WarningManager {
         for(int y=-1;y<=1;y++)for(int x=-radius;x<=radius;x++)for(int z=-radius;z<=radius;z++)
             if(c.world.getFluidState(base.add(x,y,z)).isIn(FluidTags.LAVA))return true;
         return false;
+    }
+
+    private boolean isApproaching(PlayerEntity player,ProjectileEntity projectile) {
+        Vec3d toPlayer=new Vec3d(player.getX()-projectile.getX(),player.getY()+1.0-projectile.getY(),player.getZ()-projectile.getZ());
+        Vec3d velocity=projectile.getVelocity();
+        if(velocity.lengthSquared()<0.001||toPlayer.lengthSquared()<0.01)return false;
+        return velocity.normalize().dotProduct(toPlayer.normalize())>0.72;
     }
 
     private boolean isBehind(PlayerEntity self,Entity other) {
