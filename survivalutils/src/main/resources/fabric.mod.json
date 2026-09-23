@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "id": "survivalutils",
+  "id": "exolink",
   "version": "${version}",
-  "name": "SURV // OS",
-  "description": "Organized client-side survival HUD and visor system with prioritized warnings, Advisor, ECHO, tracker, automation, tame-mob squad controls, AutoEnchanter, TradeCycler, SeedCrackerX, scripts and library.",
+  "name": "EXO // LINK",
+  "description": "Power Armor survival system with adaptive HUD, prioritized warnings, Advisor, Escape Vector, observed Threat Memory, visor damage, EXO PACK, ECHO and integrated survival tools.",
   "authors": [
     "Neil"
   ],
