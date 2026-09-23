@@ -78,6 +78,11 @@ public final class ExoLinkScreen extends Screen {
         y+=34;
         toggle(x,y,half,"UI ANIMATIONS",()->ExoLinkData.SETTINGS.hudAnimations,v->ExoLinkData.SETTINGS.hudAnimations=v);
         button(x+half+8,y,half,"CLEAR VISOR DAMAGE",VisorDamageSystem::clear);
+        y+=34;
+        button(x,y,w,"VISOR MODE // "+ExoSuitSystems.configuredMode()+" // CLICK TO CYCLE",()->{
+            ExoSuitSystems.cycleMode();
+            rebuild();
+        });
     }
 
     private void buildIntel(int x,int y,int w) {
@@ -98,12 +103,20 @@ public final class ExoLinkScreen extends Screen {
         if(client!=null&&client.targetedEntity instanceof PlayerEntity p) {
             ThreatMemoryManager.Contact c=ThreatMemoryManager.get(p);
             String tag=c==null?"NEUTRAL":c.tag;
-            button(x,y,w,"TARGET "+p.getGameProfile().name()+" // TAG "+tag+" // CLICK TO CYCLE",()->{
+            button(x,y,half,"TAG "+p.getGameProfile().name()+" // "+tag,()->{
                 ThreatMemoryManager.cycleTag(p);
                 rebuild();
             });
+            button(x+half+8,y,half,"LOCK THREAT // "+p.getGameProfile().name(),()->{
+                ExoSuitSystems.lockThreat(p);
+                rebuild();
+            });
         } else {
-            disabled(x,y,w,"LOOK AT A PLAYER TO TAG FRIEND / WATCH / HOSTILE");
+            disabled(x,y,half,"LOOK AT PLAYER TO TAG");
+            button(x+half+8,y,half,"CLEAR THREAT LOCK",()->{
+                ExoSuitSystems.clearThreatLock();
+                rebuild();
+            });
         }
     }
 
@@ -216,6 +229,7 @@ public final class ExoLinkScreen extends Screen {
             }
             case "VISOR"->{
                 line(ctx,x,y,"VISOR DAMAGE // "+VisorDamageSystem.damagePercent()+"%",0xFF7DE1EB); y+=15;
+                line(ctx,x,y,"MODE // "+ExoSuitSystems.effectiveMode(client)+" // CONFIG "+ExoSuitSystems.configuredMode(),0xFF9BC3C8); y+=15;
                 line(ctx,x,y,"ARMOR // "+SurvMegaState.armorName(client.player)+" // "+SurvMegaState.armorIntegrity(client.player)+"%",0xFFAAC5C9);
             }
             case "INTEL"->{
@@ -228,6 +242,7 @@ public final class ExoLinkScreen extends Screen {
                 if(a.estimatedWinPercent()>=0) {
                     line(ctx,x,y,"WIN ESTIMATE // "+a.estimatedWinPercent()+"% // "+a.confidence()+" CONFIDENCE",0xFFFFD07A); y+=15;
                 }
+                line(ctx,x,y,"THREAT LOCK // "+(ExoSuitSystems.hasThreatLock()?"ACTIVE":"NONE"),0xFF9BC3C8); y+=15;
                 int shown=0;
                 for(String s:a.details()) {
                     if(shown++>=5)break;
