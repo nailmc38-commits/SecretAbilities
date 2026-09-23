@@ -36,6 +36,7 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         CONFIG.load();
+        ExoLinkData.load();
         SeedCrackerShortcut.register();
 
         menuKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
@@ -56,29 +57,35 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
 
     private static void tick(MinecraftClient client) {
         while (menuKey.wasPressed()) {
-            if (client.currentScreen instanceof SurvMegaHubScreen) {
+            if (client.currentScreen instanceof ExoLinkScreen) {
                 client.setScreen(null);
             } else {
-                client.setScreen(new SurvMegaHubScreen());
+                client.setScreen(new ExoLinkScreen());
             }
         }
 
         STATS.tick(client);
         AUTO_CLUTCH.tick(client);
+        ThreatMemoryManager.tick(client);
+        CombatAdvisor.tick(client);
+        PackManager.tick(client);
+        VisorDamageSystem.tick(client);
         WARNINGS.tick(client);
-        SurvMegaState.tick(client);
-        MobControlManager.tick(client);
     }
 
     private static void renderHud(DrawContext ctx, RenderTickCounter counter) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null || client.world == null || client.textRenderer == null) return;
 
+        if (ExoLinkData.SETTINGS.exoHud) {
+            ExoHudRenderer.render(ctx, client, WARNINGS.active());
+            return;
+        }
+
         if (CONFIG.isEnabled(Feature.MAIN_HUD)) renderMainHud(ctx, client);
         if (CONFIG.isEnabled(Feature.STATS_PANEL)) renderStatsHud(ctx, client);
         if (CONFIG.isEnabled(Feature.HELMET_OVERLAY)) renderHelmetHud(ctx, client);
         renderWarningBanner(ctx, client);
-        SurvMegaState.render(ctx, client);
     }
 
     private static void renderMainHud(DrawContext ctx, MinecraftClient client) {
@@ -515,6 +522,7 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
             case INFO -> 0xFFFFE27A;
             case CAUTION -> 0xFFFFB45D;
             case DANGER -> 0xFFFF4E4E;
+            case CRITICAL -> 0xFFFF2424;
         };
 
         int screenW = ctx.getScaledWindowWidth();
