@@ -41,6 +41,8 @@ public final class ExoHudRenderer {
         }
 
         if(ExoLinkData.SETTINGS.escapeVector) renderEscape(ctx,client,compact);
+        renderFlight(ctx,client,compact);
+        renderRecovery(ctx,client,compact);
         renderWarning(ctx,client,warning,compact);
         VisorDamageSystem.render(ctx,client);
         VisorDamageSystem.renderDirection(ctx,client);
@@ -104,8 +106,9 @@ public final class ExoHudRenderer {
 
     private static void renderTopBar(DrawContext ctx,MinecraftClient c,boolean compact) {
         int w=ctx.getScaledWindowWidth();
-        String left="EXO // LINK";
-        String right=c.player.getBlockX()+" "+c.player.getBlockY()+" "+c.player.getBlockZ()
+        String left="EXO // "+ExoSuitSystems.effectiveMode(c);
+        ExoSuitSystems.Readiness ready=ExoSuitSystems.readiness(c);
+        String right="READY "+ready.percent()+"% // "+c.player.getBlockX()+" "+c.player.getBlockY()+" "+c.player.getBlockZ()
                 +" // "+c.world.getRegistryKey().getValue().getPath().toUpperCase(Locale.ROOT);
         int barW=compact?240:330;
         int x=(w-barW)/2;
@@ -234,6 +237,36 @@ public final class ExoHudRenderer {
         line(ctx,c,x+12,y+48,"ADVISOR // "+a.recommendation()+" // "+trim(a.opponent(),18),0xFFFFD07A);
         line(ctx,c,x+12,y+65,"ESCAPE // "+a.escape().direction()+" // "+a.escape().clearBlocks()+"m CLEAR",0xFF82EFF4);
         line(ctx,c,x+12,y+80,"HP "+String.format(Locale.ROOT,"%.1f",c.player.getHealth())+" // ARMOR "+c.player.getArmor()+"/20",0xFFD9E8EA);
+    }
+
+    private static void renderFlight(DrawContext ctx,MinecraftClient c,boolean compact) {
+        if(ExoSuitSystems.effectiveMode(c)!=ExoSuitSystems.VisorMode.FLIGHT)return;
+        ExoSuitSystems.Flight f=ExoSuitSystems.flight(c);
+        int w=ctx.getScaledWindowWidth();
+        int boxW=compact?190:230;
+        int x=w-boxW-18;
+        int y=compact?118:170;
+        ctx.fill(x,y,x+boxW,y+(compact?50:63),0xAF0A0E10);
+        ctx.fill(x+boxW-3,y,x+boxW,y+(compact?50:63),f.pullUp()?0xFFFF4F4F:0xFF62D9E8);
+        line(ctx,c,x+8,y+7,"FLIGHT COMPUTER",0xFF8BEAF4);
+        line(ctx,c,x+8,y+20,String.format(Locale.ROOT,"SPD %.1f b/s // ALT %d",f.speed(),f.altitude()),0xFFC9DEE1);
+        line(ctx,c,x+8,y+33,"ROCKETS "+f.rockets()+" // ELYTRA "+f.elytraDurability()+"%",0xFFAAC3C7);
+        if(!compact&&f.pullUp())line(ctx,c,x+8,y+46,"PULL UP",0xFFFF5C5C);
+    }
+
+    private static void renderRecovery(DrawContext ctx,MinecraftClient c,boolean compact) {
+        ExoTelemetry.Recovery r=ExoTelemetry.recovery();
+        if(r==null)return;
+        if(!r.dimension().equals(c.world.getRegistryKey().getValue().getPath()))return;
+        double dx=r.x()-c.player.getX(),dy=r.y()-c.player.getY(),dz=r.z()-c.player.getZ();
+        double d=Math.sqrt(dx*dx+dy*dy+dz*dz);
+        if(d<5)return;
+        String text="RECOVERY // "+r.x()+" "+r.y()+" "+r.z()+" // "+String.format(Locale.ROOT,"%.0fm",d);
+        int tw=c.textRenderer.getWidth(text);
+        int x=18,y=compact?92:126;
+        ctx.fill(x,y,x+tw+12,y+20,0xA90A0E10);
+        ctx.fill(x,y,x+3,y+20,0xFFFFB35A);
+        line(ctx,c,x+7,y+6,text,0xFFFFCE8A);
     }
 
     private static void renderWarning(DrawContext ctx,MinecraftClient c,WarningManager.Warning warning,boolean compact) {
