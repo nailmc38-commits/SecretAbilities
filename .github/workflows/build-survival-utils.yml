@@ -1,8 +1,8 @@
-name: Build SURV OS Clean
+name: Build EXO LINK
 
 on:
   push:
-    branches: [ surv-os-clean ]
+    branches: [ exo-link ]
   workflow_dispatch:
 
 jobs:
@@ -37,7 +37,7 @@ jobs:
       - name: Upload JAR
         uses: actions/upload-artifact@v4
         with:
-          name: SURV-OS-Clean-1.21.11
+          name: EXO-LINK-1.21.11
           path: |
             build/libs/*.jar
             !build/libs/*-sources.jar
