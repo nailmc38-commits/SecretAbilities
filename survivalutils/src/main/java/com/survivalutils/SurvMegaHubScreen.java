@@ -1,6 +1,7 @@
 package com.survivalutils;
 
-import net.fabricmc.loader.api.FabricLoader;
+import com.secret.autoenchanter.AutoEnchanterClient;
+import com.secret.tradecycler.TradeCyclerClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
@@ -9,26 +10,33 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import org.lwjgl.glfw.GLFW;
 
-import java.nio.file.Files;
-import java.util.*;
+import java.util.List;
 
 public final class SurvMegaHubScreen extends Screen {
-    private static final List<String> BUILTIN = List.of(
-            "HOME","ADVISOR","EXO","ECHO","MOB CONTROL","SCRIPT","MACROS","AURA",
-            "TRACKER","TRAP","COMPANION","SATELLITE","ESPANOL","LIBRARY","WASTELAND",
-            "LOG","UTILITIES","TOOLS"
+    private static final List<String> TABS = List.of(
+            "DASHBOARD",
+            "HUD",
+            "VISOR",
+            "WARNINGS",
+            "INTEL",
+            "AUTOMATION",
+            "MOB CONTROL",
+            "TOOLS",
+            "LIBRARY",
+            "SETTINGS"
     );
 
     private String tab;
     private int sidebarScroll;
-    private int contentScroll;
     private int bookPage;
-    private int spanishPage;
 
-    public SurvMegaHubScreen() { this("HOME"); }
+    public SurvMegaHubScreen() {
+        this("DASHBOARD");
+    }
+
     public SurvMegaHubScreen(String tab) {
         super(Text.literal("SURV // OS"));
-        this.tab = tab == null ? "HOME" : tab;
+        this.tab = TABS.contains(tab) ? tab : "DASHBOARD";
     }
 
     @Override
@@ -36,24 +44,281 @@ public final class SurvMegaHubScreen extends Screen {
         SurvMegaState.ensureLoaded();
         clearChildren();
 
-        int left = panelLeft();
-        int top = 48;
-        int sidebarW = 124;
-        int visible = Math.max(6, (height - 78) / 27);
-        List<String> tabs = allTabs();
+        int l = panelLeft();
+        int r = panelRight();
+        int sideW = 130;
+        int top = 49;
+        int visible = Math.max(7, (height - 74) / 28);
+        sidebarScroll = Math.max(0, Math.min(sidebarScroll, Math.max(0, TABS.size() - visible)));
 
-        sidebarScroll = Math.max(0, Math.min(sidebarScroll, Math.max(0, tabs.size() - visible)));
-        for (int i=0;i<visible && i+sidebarScroll<tabs.size();i++) {
-            String name=tabs.get(i+sidebarScroll);
-            boolean active=name.equals(tab);
-            addDrawableChild(ButtonWidget.builder(Text.literal((active?"◆ ":"  ")+displayName(name)), b -> {
-                tab=name;
-                contentScroll=0;
-                rebuild();
-            }).dimensions(left+10, top+i*27, sidebarW-18, 22).build());
+        for (int i = 0; i < visible && i + sidebarScroll < TABS.size(); i++) {
+            String name = TABS.get(i + sidebarScroll);
+            boolean active = name.equals(tab);
+            addDrawableChild(ButtonWidget.builder(
+                    Text.literal((active ? "◆ " : "  ") + name),
+                    b -> {
+                        tab = name;
+                        rebuild();
+                    }
+            ).dimensions(l + 10, top + i * 28, sideW - 18, 22).build());
         }
 
-        buildTab(panelLeft()+sidebarW+8, 56, panelRight()-panelLeft()-sidebarW-18);
+        int x = l + sideW + 16;
+        int y = 63;
+        int w = r - x - 14;
+
+        switch (tab) {
+            case "DASHBOARD" -> buildDashboard(x, y, w);
+            case "HUD" -> buildHud(x, y, w);
+            case "VISOR" -> buildVisor(x, y, w);
+            case "WARNINGS" -> buildWarnings(x, y, w);
+            case "INTEL" -> buildIntel(x, y, w);
+            case "AUTOMATION" -> buildAutomation(x, y, w);
+            case "MOB CONTROL" -> buildMobControl(x, y, w);
+            case "TOOLS" -> buildTools(x, y, w);
+            case "LIBRARY" -> buildLibrary(x, y, w);
+            case "SETTINGS" -> buildSettings(x, y, w);
+        }
+    }
+
+    private void buildDashboard(int x, int y, int w) {
+        int half = (w - 8) / 2;
+        button(x, y, half, "OPEN HUD SETTINGS", () -> client.setScreen(new SurvivalUtilsScreen()));
+        button(x + half + 8, y, half, "SAVE", () -> {
+            SurvMegaState.save();
+            SurvivalUtilsClient.CONFIG.save();
+        });
+
+        y += 34;
+        toggle(x, y, half, "EXO VISOR", () -> SurvMegaState.SETTINGS.exo,
+                v -> SurvMegaState.SETTINGS.exo = v);
+        toggle(x + half + 8, y, half, "IDENTIFY", () -> SurvMegaState.SETTINGS.identify,
+                v -> SurvMegaState.SETTINGS.identify = v);
+
+        y += 34;
+        toggle(x, y, half, "TRACKER", () -> SurvMegaState.SETTINGS.tracker,
+                v -> SurvMegaState.SETTINGS.tracker = v);
+        toggle(x + half + 8, y, half, "MOB CONTROL", () -> SurvMegaState.SETTINGS.mobControl,
+                v -> SurvMegaState.SETTINGS.mobControl = v);
+    }
+
+    private void buildHud(int x, int y, int w) {
+        int half = (w - 8) / 2;
+
+        button(x, y, half,
+                "MAIN HUD  " + onOff(SurvivalUtilsClient.CONFIG.isEnabled(Feature.MAIN_HUD)),
+                () -> {
+                    SurvivalUtilsClient.CONFIG.toggle(Feature.MAIN_HUD);
+                    rebuild();
+                });
+
+        button(x + half + 8, y, half,
+                "LEFT STATS  " + onOff(SurvivalUtilsClient.CONFIG.isEnabled(Feature.STATS_PANEL)),
+                () -> {
+                    SurvivalUtilsClient.CONFIG.toggle(Feature.STATS_PANEL);
+                    rebuild();
+                });
+
+        y += 34;
+        button(x, y, half,
+                "HELMET HUD  " + onOff(SurvivalUtilsClient.CONFIG.isEnabled(Feature.HELMET_OVERLAY)),
+                () -> {
+                    SurvivalUtilsClient.CONFIG.toggle(Feature.HELMET_OVERLAY);
+                    rebuild();
+                });
+
+        button(x + half + 8, y, half,
+                "HUD SIDE  " + (SurvivalUtilsClient.CONFIG.hudRight ? "RIGHT" : "LEFT"),
+                () -> {
+                    SurvivalUtilsClient.CONFIG.hudRight = !SurvivalUtilsClient.CONFIG.hudRight;
+                    SurvivalUtilsClient.CONFIG.save();
+                    rebuild();
+                });
+
+        y += 34;
+        button(x, y, w, "DETAILED ORIGINAL HUD SETTINGS",
+                () -> client.setScreen(new SurvivalUtilsScreen()));
+    }
+
+    private void buildVisor(int x, int y, int w) {
+        int half = (w - 8) / 2;
+        toggle(x, y, half, "POWER ARMOR VISOR", () -> SurvMegaState.SETTINGS.exo,
+                v -> SurvMegaState.SETTINGS.exo = v);
+        toggle(x + half + 8, y, half, "DAMAGE CRACKS", () -> SurvMegaState.SETTINGS.visorDamage,
+                v -> SurvMegaState.SETTINGS.visorDamage = v);
+
+        y += 34;
+        toggle(x, y, half, "IDENTIFY CARDS", () -> SurvMegaState.SETTINGS.identify,
+                v -> SurvMegaState.SETTINGS.identify = v);
+        button(x + half + 8, y, half, "CLEAR VISOR DAMAGE", SurvMegaState::clearVisor);
+    }
+
+    private void buildWarnings(int x, int y, int w) {
+        int half = (w - 8) / 2;
+
+        button(x, y, half,
+                "BANNER  " + onOff(SurvivalUtilsClient.CONFIG.warningBanner),
+                () -> {
+                    SurvivalUtilsClient.CONFIG.warningBanner = !SurvivalUtilsClient.CONFIG.warningBanner;
+                    SurvivalUtilsClient.CONFIG.save();
+                    rebuild();
+                });
+
+        button(x + half + 8, y, half,
+                "ACTION BAR  " + onOff(SurvivalUtilsClient.CONFIG.warningActionbar),
+                () -> {
+                    SurvivalUtilsClient.CONFIG.warningActionbar = !SurvivalUtilsClient.CONFIG.warningActionbar;
+                    SurvivalUtilsClient.CONFIG.save();
+                    rebuild();
+                });
+
+        y += 34;
+        button(x, y, half, "ENABLE CORE WARNINGS", () -> {
+            SurvivalUtilsClient.CONFIG.setCategory(Feature.Category.ALERTS, true);
+            SurvivalUtilsClient.CONFIG.set(Feature.CREEPER_ALERT, true);
+            SurvivalUtilsClient.CONFIG.set(Feature.SPECTATOR_ALERT, true);
+            SurvivalUtilsClient.CONFIG.set(Feature.PLAYER_PROXIMITY_ALERT, true);
+            SurvivalUtilsClient.CONFIG.set(Feature.NO_TOTEM_ALERT, true);
+            rebuild();
+        });
+
+        button(x + half + 8, y, half, "WARNING SETTINGS",
+                () -> client.setScreen(new SurvivalUtilsScreen()));
+    }
+
+    private void buildIntel(int x, int y, int w) {
+        int half = (w - 8) / 2;
+        toggle(x, y, half, "PLAYER TRACKER", () -> SurvMegaState.SETTINGS.tracker,
+                v -> SurvMegaState.SETTINGS.tracker = v);
+        toggle(x + half + 8, y, half, "SATELLITE", () -> SurvMegaState.SETTINGS.satellite,
+                v -> SurvMegaState.SETTINGS.satellite = v);
+
+        y += 34;
+        button(x, y, half, "OPEN ECHO 3D", () -> client.setScreen(new Echo3DScreen(this)));
+        button(x + half + 8, y, half, "CLEAR TRACKER HISTORY", SurvMegaState::clearTracker);
+    }
+
+    private void buildAutomation(int x, int y, int w) {
+        int half = (w - 8) / 2;
+
+        toggle(x, y, half, "MACROS", () -> SurvMegaState.SETTINGS.macros,
+                v -> SurvMegaState.SETTINGS.macros = v);
+        toggle(x + half + 8, y, half, "COMBAT MUSIC", () -> SurvMegaState.SETTINGS.aura,
+                v -> SurvMegaState.SETTINGS.aura = v);
+
+        y += 34;
+        button(x, y, half,
+                SurvMegaState.macroRecording() ? "STOP RECORDING" : "RECORD MACRO",
+                () -> {
+                    if (SurvMegaState.macroRecording()) SurvMegaState.stopMacro(client);
+                    else SurvMegaState.startMacroRecording();
+                    rebuild();
+                });
+
+        button(x + half + 8, y, half,
+                SurvMegaState.macroPlaying() ? "STOP PLAYBACK" : "PLAY MACRO",
+                () -> {
+                    if (SurvMegaState.macroPlaying()) SurvMegaState.stopMacro(client);
+                    else SurvMegaState.playMacro();
+                    rebuild();
+                });
+
+        y += 34;
+        toggle(x, y, half, "TRAP ASSIST", () -> SurvMegaState.SETTINGS.trap,
+                v -> SurvMegaState.SETTINGS.trap = v);
+        toggle(x + half + 8, y, half, "SURV SCRIPT", () -> SurvMegaState.SETTINGS.scripts,
+                v -> SurvMegaState.SETTINGS.scripts = v);
+    }
+
+    private void buildMobControl(int x, int y, int w) {
+        int half = (w - 8) / 2;
+
+        button(x, y, half, "SELECT LOOKED-AT TAME",
+                () -> MobControlManager.toggleLookedAt(client));
+        button(x + half + 8, y, half, "SELECT MY TAMES // 32m",
+                () -> MobControlManager.selectNearby(client));
+
+        y += 34;
+        button(x, y, half, "ORDER // HOLD",
+                () -> MobControlManager.order(client, MobControlManager.Order.HOLD));
+        button(x + half + 8, y, half, "ORDER // FOLLOW",
+                () -> MobControlManager.order(client, MobControlManager.Order.FOLLOW));
+
+        y += 34;
+        button(x, y, w, "CLEAR SQUAD",
+                () -> MobControlManager.clear(client));
+    }
+
+    private void buildTools(int x, int y, int w) {
+        int half = (w - 8) / 2;
+
+        button(x, y, half, "AUTO ENCHANTER",
+                () -> AutoEnchanterClient.openBuilder(client));
+
+        button(x + half + 8, y, half, "VILLAGER CYCLER SETTINGS",
+                () -> TradeCyclerClient.openSettings(client, this));
+
+        y += 34;
+        button(x, y, half, "START / STOP VILLAGER CYCLER",
+                () -> {
+                    TradeCyclerClient.toggle(client);
+                    rebuild();
+                });
+
+        button(x + half + 8, y, half, "SEED CRACKER",
+                () -> SeedCrackerShortcut.runNow());
+
+        y += 34;
+        button(x, y, w, "ORIGINAL SURVIVAL UTILITIES",
+                () -> client.setScreen(new SurvivalUtilsScreen()));
+    }
+
+    private void buildLibrary(int x, int y, int w) {
+        int half = (w - 8) / 2;
+        button(x, y, half, "◀ PAGE", () -> {
+            bookPage = Math.max(0, bookPage - 1);
+        });
+        button(x + half + 8, y, half, "PAGE ▶", () -> bookPage++);
+    }
+
+    private void buildSettings(int x, int y, int w) {
+        int half = (w - 8) / 2;
+
+        button(x, y, half, "SAVE ALL", () -> {
+            SurvMegaState.save();
+            SurvivalUtilsClient.CONFIG.save();
+        });
+
+        button(x + half + 8, y, half, "CLEAR EVENT LOG", SurvMegaState::clearLogs);
+
+        y += 34;
+        button(x, y, half, "RELOAD SURV SCRIPTS", () -> {
+            SurvMegaState.reloadScripts();
+            rebuild();
+        });
+
+        button(x + half + 8, y, half, "RESET VISOR DAMAGE", SurvMegaState::clearVisor);
+    }
+
+    private interface BoolGet { boolean get(); }
+    private interface BoolSet { void set(boolean value); }
+
+    private void toggle(int x, int y, int w, String label, BoolGet get, BoolSet set) {
+        button(x, y, w, label + "  " + onOff(get.get()), () -> {
+            set.set(!get.get());
+            SurvMegaState.save();
+            rebuild();
+        });
+    }
+
+    private void button(int x, int y, int w, String label, Runnable action) {
+        addDrawableChild(ButtonWidget.builder(Text.literal(label), b -> action.run())
+                .dimensions(x, y, w, 24)
+                .build());
+    }
+
+    private String onOff(boolean value) {
+        return value ? "ON" : "OFF";
     }
 
     private void rebuild() {
@@ -61,412 +326,159 @@ public final class SurvMegaHubScreen extends Screen {
         init();
     }
 
-    private List<String> allTabs() {
-        ArrayList<String> out=new ArrayList<>(BUILTIN);
-        for (SurvMegaState.ScriptTab t:SurvMegaState.scriptTabs()) out.add("SCRIPT:"+t.name());
-        return out;
-    }
-
-    private String displayName(String name) {
-        if(name.startsWith("SCRIPT:"))return name.substring(7);
-        return name;
-    }
-
-    private void buildTab(int x,int y,int w) {
-        switch(tab) {
-            case "HOME" -> home(x,y,w);
-            case "ADVISOR" -> advisor(x,y,w);
-            case "EXO" -> exo(x,y,w);
-            case "ECHO" -> echo(x,y,w);
-            case "MOB CONTROL" -> mob(x,y,w);
-            case "SCRIPT" -> scripts(x,y,w);
-            case "MACROS" -> macros(x,y,w);
-            case "AURA" -> aura(x,y,w);
-            case "TRACKER" -> tracker(x,y,w);
-            case "TRAP" -> trap(x,y,w);
-            case "COMPANION" -> companion(x,y,w);
-            case "SATELLITE" -> satellite(x,y,w);
-            case "ESPANOL" -> spanish(x,y,w);
-            case "LIBRARY" -> library(x,y,w);
-            case "WASTELAND" -> wasteland(x,y,w);
-            case "LOG" -> logTab(x,y,w);
-            case "UTILITIES" -> utilities(x,y,w);
-            case "TOOLS" -> tools(x,y,w);
-            default -> {
-                if(tab.startsWith("SCRIPT:")) scriptCustom(x,y,w,tab.substring(7));
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double vertical) {
+        int l = panelLeft();
+        if (mouseX >= l && mouseX <= l + 130) {
+            int visible = Math.max(7, (height - 74) / 28);
+            int max = Math.max(0, TABS.size() - visible);
+            int old = sidebarScroll;
+            sidebarScroll = Math.max(0, Math.min(max, sidebarScroll - (int)Math.round(vertical)));
+            if (old != sidebarScroll) {
+                rebuild();
+                return true;
             }
         }
-    }
-
-    private void home(int x,int y,int w) {
-        toggle(x,y,w/2-4,"ADVISOR",()->SurvMegaState.SETTINGS.advisor,v->SurvMegaState.SETTINGS.advisor=v);
-        toggle(x+w/2+4,y,w/2-4,"EXO",()->SurvMegaState.SETTINGS.exo,v->SurvMegaState.SETTINGS.exo=v);
-        y+=32;
-        toggle(x,y,w/2-4,"VISOR DAMAGE",()->SurvMegaState.SETTINGS.visorDamage,v->SurvMegaState.SETTINGS.visorDamage=v);
-        toggle(x+w/2+4,y,w/2-4,"IDENTIFY",()->SurvMegaState.SETTINGS.identify,v->SurvMegaState.SETTINGS.identify=v);
-        y+=32;
-        toggle(x,y,w/2-4,"TRACKER",()->SurvMegaState.SETTINGS.tracker,v->SurvMegaState.SETTINGS.tracker=v);
-        toggle(x+w/2+4,y,w/2-4,"SATELLITE",()->SurvMegaState.SETTINGS.satellite,v->SurvMegaState.SETTINGS.satellite=v);
-        y+=32;
-        toggle(x,y,w/2-4,"COMPANION",()->SurvMegaState.SETTINGS.companion,v->SurvMegaState.SETTINGS.companion=v);
-        toggle(x+w/2+4,y,w/2-4,"AURA",()->SurvMegaState.SETTINGS.aura,v->SurvMegaState.SETTINGS.aura=v);
-        y+=44;
-        button(x,y,w/2-4,"OPEN ECHO 3D",()->client.setScreen(new Echo3DScreen(this)));
-        button(x+w/2+4,y,w/2-4,"PLAY WASTELAND 3D",()->client.setScreen(new Wasteland3DScreen(this)));
-        y+=32;
-        button(x,y,w/2-4,"ORIGINAL UTILITIES",()->client.setScreen(new SurvivalUtilsScreen()));
-        button(x+w/2+4,y,w/2-4,"SAVE EVERYTHING",()->{
-            SurvMegaState.save();
-            SurvivalUtilsClient.CONFIG.save();
-        });
-    }
-
-    private void advisor(int x,int y,int w) {
-        toggle(x,y,w,"SURV // ADVISOR",()->SurvMegaState.SETTINGS.advisor,v->SurvMegaState.SETTINGS.advisor=v);
-    }
-
-    private void exo(int x,int y,int w) {
-        toggle(x,y,w/2-4,"EXO HUD",()->SurvMegaState.SETTINGS.exo,v->SurvMegaState.SETTINGS.exo=v);
-        toggle(x+w/2+4,y,w/2-4,"VISOR DAMAGE",()->SurvMegaState.SETTINGS.visorDamage,v->SurvMegaState.SETTINGS.visorDamage=v);
-        y+=34;
-        button(x,y,w/2-4,"CLEAR VISOR DAMAGE",SurvMegaState::clearVisor);
-        button(x+w/2+4,y,w/2-4,"SAVE",SurvMegaState::save);
-    }
-
-    private void echo(int x,int y,int w) {
-        button(x,y,w,"OPEN SURV // ECHO 3D",()->client.setScreen(new Echo3DScreen(this)));
-    }
-
-    private void mob(int x,int y,int w) {
-        toggle(x,y,w,"MOB CONTROL",()->SurvMegaState.SETTINGS.mobControl,v->SurvMegaState.SETTINGS.mobControl=v);
-        y+=34;
-        button(x,y,w,"SELECT / RELEASE LOOKED-AT MOB",()->SurvMegaState.selectLookedAtMob(client));
-    }
-
-    private void scripts(int x,int y,int w) {
-        toggle(x,y,w,"SURV SCRIPT ENGINE",()->SurvMegaState.SETTINGS.scripts,v->SurvMegaState.SETTINGS.scripts=v);
-        y+=34;
-        button(x,y,w/2-4,"RELOAD .SURV FILES",()->{SurvMegaState.reloadScripts();rebuild();});
-        button(x+w/2+4,y,w/2-4,"SAVE",SurvMegaState::save);
-    }
-
-    private void macros(int x,int y,int w) {
-        toggle(x,y,w,"MACRO SYSTEM",()->SurvMegaState.SETTINGS.macros,v->SurvMegaState.SETTINGS.macros=v);
-        y+=34;
-        button(x,y,w/2-4,SurvMegaState.macroRecording()?"STOP RECORDING":"RECORD",()->{
-            if(SurvMegaState.macroRecording())SurvMegaState.stopMacro(client);else SurvMegaState.startMacroRecording();
-            rebuild();
-        });
-        button(x+w/2+4,y,w/2-4,SurvMegaState.macroPlaying()?"STOP PLAYBACK":"PLAY",()->{
-            if(SurvMegaState.macroPlaying())SurvMegaState.stopMacro(client);else SurvMegaState.playMacro();
-            rebuild();
-        });
-        y+=34;
-        button(x,y,w,"DELETE RECORDING",()->{SurvMegaState.clearMacro(client);rebuild();});
-    }
-
-    private void aura(int x,int y,int w) {
-        toggle(x,y,w,"SURV // AURA",()->SurvMegaState.SETTINGS.aura,v->{
-            SurvMegaState.SETTINGS.aura=v;
-            if(!v)SurvMegaState.stopAura();
-        });
-        y+=34;
-        toggle(x,y,w/2-4,"PLAYER COMBAT",()->SurvMegaState.SETTINGS.auraPlayers,v->SurvMegaState.SETTINGS.auraPlayers=v);
-        toggle(x+w/2+4,y,w/2-4,"MOB COMBAT",()->SurvMegaState.SETTINGS.auraMobs,v->SurvMegaState.SETTINGS.auraMobs=v);
-        y+=34;
-        button(x,y,w,"STOP CURRENT AURA",SurvMegaState::stopAura);
-    }
-
-    private void tracker(int x,int y,int w) {
-        toggle(x,y,w,"PLAYER TRACKER / LAST SEEN",()->SurvMegaState.SETTINGS.tracker,v->SurvMegaState.SETTINGS.tracker=v);
-        y+=34;
-        button(x,y,w,"CLEAR TRACKER HISTORY",()->{SurvMegaState.clearTracker();rebuild();});
-    }
-
-    private void trap(int x,int y,int w) {
-        toggle(x,y,w,"TRAP ASSIST",()->SurvMegaState.SETTINGS.trap,v->SurvMegaState.SETTINGS.trap=v);
-        y+=34;
-        toggle(x,y,w/2-4,"WEB FIRST",()->SurvMegaState.SETTINGS.trapWeb,v->SurvMegaState.SETTINGS.trapWeb=v);
-        toggle(x+w/2+4,y,w/2-4,"BOX",()->SurvMegaState.SETTINGS.trapBox,v->SurvMegaState.SETTINGS.trapBox=v);
-        y+=34;
-        button(x,y,w/2-4,"RANGE  "+SurvMegaState.SETTINGS.trapRange,()->{
-            SurvMegaState.SETTINGS.trapRange++;
-            if(SurvMegaState.SETTINGS.trapRange>8)SurvMegaState.SETTINGS.trapRange=2;
-            SurvMegaState.save();rebuild();
-        });
-        button(x+w/2+4,y,w/2-4,"PACE  "+SurvMegaState.SETTINGS.trapDelayTicks+"t",()->{
-            SurvMegaState.SETTINGS.trapDelayTicks+=2;
-            if(SurvMegaState.SETTINGS.trapDelayTicks>20)SurvMegaState.SETTINGS.trapDelayTicks=4;
-            SurvMegaState.save();rebuild();
-        });
-    }
-
-    private void companion(int x,int y,int w) {
-        toggle(x,y,w,"SURV // COMPANION",()->SurvMegaState.SETTINGS.companion,v->SurvMegaState.SETTINGS.companion=v);
-    }
-
-    private void satellite(int x,int y,int w) {
-        toggle(x,y,w,"SURV // SATELLITE",()->SurvMegaState.SETTINGS.satellite,v->SurvMegaState.SETTINGS.satellite=v);
-        y+=34;
-        toggle(x,y,w/2-4,"FOLLOW PLAYERS",()->SurvMegaState.SETTINGS.satellitePlayers,v->SurvMegaState.SETTINGS.satellitePlayers=v);
-        toggle(x+w/2+4,y,w/2-4,"FOLLOW HOSTILES",()->SurvMegaState.SETTINGS.satelliteHostiles,v->SurvMegaState.SETTINGS.satelliteHostiles=v);
-    }
-
-    private void spanish(int x,int y,int w) {
-        button(x,y,w/2-4,"◀ PREVIOUS",()->{spanishPage=Math.max(0,spanishPage-1);});
-        button(x+w/2+4,y,w/2-4,"NEXT ▶",()->{spanishPage=Math.min(5,spanishPage+1);});
-    }
-
-    private void library(int x,int y,int w) {
-        button(x,y,w/2-4,"◀ PAGE",()->bookPage=Math.max(0,bookPage-1));
-        button(x+w/2+4,y,w/2-4,"PAGE ▶",()->bookPage++);
-    }
-
-    private void wasteland(int x,int y,int w) {
-        button(x,y,w,"PLAY SURV // WASTELAND 3D",()->client.setScreen(new Wasteland3DScreen(this)));
-    }
-
-    private void logTab(int x,int y,int w) {
-        toggle(x,y,w,"EVENT LOGGING",()->SurvMegaState.SETTINGS.logs,v->SurvMegaState.SETTINGS.logs=v);
-        y+=34;
-        button(x,y,w,"CLEAR ENTIRE LOG",()->{SurvMegaState.clearLogs();rebuild();});
-    }
-
-    private void utilities(int x,int y,int w) {
-        button(x,y,w,"OPEN SURVIVAL UTILS 2.3 CONTROLS",()->client.setScreen(new SurvivalUtilsScreen()));
-    }
-
-    private void tools(int x,int y,int w) {
-        button(x,y,w/2-4,"AUTOENCHANTER STATUS",()->{});
-        button(x+w/2+4,y,w/2-4,"TRADECYCLER STATUS",()->{});
-    }
-
-    private void scriptCustom(int x,int y,int w,String name) {
-        // Script tabs are display-only by default. Their text is rendered below.
-    }
-
-    private interface BoolGet { boolean get(); }
-    private interface BoolSet { void set(boolean v); }
-
-    private void toggle(int x,int y,int w,String label,BoolGet get,BoolSet set) {
-        button(x,y,w,label+"  "+(get.get()?"ON":"OFF"),()->{
-            set.set(!get.get());
-            SurvMegaState.save();
-            rebuild();
-        });
-    }
-
-    private void button(int x,int y,int w,String label,Runnable action) {
-        addDrawableChild(ButtonWidget.builder(Text.literal(label),b->action.run()).dimensions(x,y,w,24).build());
+        return super.mouseScrolled(mouseX, mouseY, horizontal, vertical);
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX,double mouseY,double hAmount,double vAmount) {
-        int left=panelLeft();
-        if(mouseX>=left&&mouseX<=left+124) {
-            List<String> tabs=allTabs();
-            int visible=Math.max(6,(height-78)/27);
-            int max=Math.max(0,tabs.size()-visible);
-            int old=sidebarScroll;
-            sidebarScroll=Math.max(0,Math.min(max,sidebarScroll-(int)Math.round(vAmount)));
-            if(old!=sidebarScroll){rebuild();return true;}
-        } else {
-            int old=contentScroll;
-            contentScroll=Math.max(0,contentScroll-(int)Math.round(vAmount*18));
-            if(old!=contentScroll)return true;
-        }
-        return super.mouseScrolled(mouseX,mouseY,hAmount,vAmount);
+    public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
+        int l = panelLeft();
+        int r = panelRight();
+
+        ctx.fill(0, 0, width, height, 0xF205080B);
+        ctx.fill(l, 10, r, height - 10, 0xF20B1115);
+        ctx.fill(l, 10, r, 13, 0xFF58D9E7);
+        ctx.fill(l + 130, 43, l + 131, height - 18, 0x554C9EAA);
+
+        ctx.drawTextWithShadow(
+                textRenderer,
+                Text.literal("SURV // OS").formatted(Formatting.AQUA, Formatting.BOLD),
+                l + 14, 20, 0xFFFFFFFF);
+
+        String header = tab + "  //  CLEAN BUILD";
+        ctx.drawTextWithShadow(textRenderer, header, r - textRenderer.getWidth(header) - 14, 21, 0xFF8DA4AD);
+
+        drawContent(ctx, l + 146, 178, r - l - 160);
+        super.render(ctx, mouseX, mouseY, delta);
     }
 
-    @Override
-    public void render(DrawContext ctx,int mouseX,int mouseY,float delta) {
-        int l=panelLeft(),r=panelRight();
-        ctx.fill(0,0,width,height,0xEE05080C);
-        ctx.fill(l,10,r,height-10,0xF20A1118);
-        ctx.fill(l,10,r,13,0xFF55EEE7);
-        ctx.fill(l+124,42,l+125,height-18,0x554CE8E2);
-
-        ctx.drawTextWithShadow(textRenderer,Text.literal("SURV // OS").formatted(Formatting.AQUA,Formatting.BOLD),l+14,20,0xFFEAFBFF);
-        String status="ADVISOR "+(SurvMegaState.SETTINGS.advisor?"ON":"OFF")
-                +"  •  EXO "+(SurvMegaState.SETTINGS.exo?"ON":"OFF")
-                +"  •  SCRIPT "+SurvMegaState.scriptTabs().size();
-        ctx.drawTextWithShadow(textRenderer,status,r-textRenderer.getWidth(status)-14,21,0xFF839AA6);
-
-        int cx=l+138;
-        int cy=48-contentScroll;
-        String title=displayName(tab);
-        ctx.drawTextWithShadow(textRenderer,Text.literal(title).formatted(Formatting.WHITE,Formatting.BOLD),cx,42,0xFFFFFFFF);
-        drawContent(ctx,cx,cy,r-cx-12);
-
-        if(FabricLoader.getInstance().isModLoaded("autoenchanter")) {
-            ctx.drawTextWithShadow(textRenderer,"AE",r-32,height-24,0xFF74F0A6);
-        }
-        if(FabricLoader.getInstance().isModLoaded("tradecycler")) {
-            ctx.drawTextWithShadow(textRenderer,"TC",r-16,height-24,0xFF74F0A6);
-        }
-        super.render(ctx,mouseX,mouseY,delta);
-    }
-
-    private void drawContent(DrawContext ctx,int x,int y,int w) {
-        int yy=y+150;
-        switch(tab) {
-            case "HOME" -> {
-                line(ctx,x,yy,"One clean hub. Every major system is independently toggleable.",0xFF9FB4C0); yy+=14;
-                line(ctx,x,yy,"Recommendation: "+SurvMegaState.recommendation(),0xFF7DE3FF); yy+=14;
-                line(ctx,x,yy,"Mob units: "+SurvMegaState.mobUnitCount()+"   Macro frames: "+SurvMegaState.macroFrames(),0xFFB7C7D6); yy+=14;
-                line(ctx,x,yy,"Visor damage: "+(int)Math.round(SurvMegaState.visorDamage()*100)+"%",0xFFCFEFFF);
+    private void drawContent(DrawContext ctx, int x, int y, int w) {
+        switch (tab) {
+            case "DASHBOARD" -> {
+                line(ctx, x, y, "Original HUD preserved. New systems layer around it.", 0xFF9FB4C0); y += 15;
+                line(ctx, x, y, "Advisor // " + SurvMegaState.recommendation(), 0xFF70E6F0); y += 15;
+                line(ctx, x, y, "Warnings // prioritized + persistent while danger exists", 0xFFFFC96B); y += 15;
+                line(ctx, x, y, "Mob squad // " + MobControlManager.selectedCount() + " selected", 0xFFB8DDE7);
             }
-            case "ADVISOR" -> {
-                line(ctx,x,yy,"CURRENT // "+SurvMegaState.recommendation(),0xFF74F0A6);yy+=16;
-                wrap(ctx,x,yy,w,SurvMegaState.recommendationWhy(),0xFFB7C7D6);
+            case "HUD" -> {
+                line(ctx, x, y, "This is the same Survival Utils HUD layout you had before.", 0xFF9FB4C0); y += 15;
+                line(ctx, x, y, "The clean build does not replace it with Mega panels.", 0xFFB8DDE7);
             }
-            case "EXO" -> {
-                if(client!=null&&client.player!=null) {
-                    line(ctx,x,yy,"ARMOR TYPE // "+SurvMegaState.armorName(client.player),0xFF8EEAFF);yy+=14;
-                    line(ctx,x,yy,"INTEGRITY // "+SurvMegaState.armorIntegrity(client.player)+"%",0xFFEAFBFF);yy+=14;
+            case "VISOR" -> {
+                if (client != null && client.player != null) {
+                    line(ctx, x, y, "Armor // " + SurvMegaState.armorName(client.player), 0xFF7CE1EE); y += 15;
+                    line(ctx, x, y, "Integrity // " + SurvMegaState.armorIntegrity(client.player) + "%", 0xFFB8DDE7); y += 15;
+                    line(ctx, x, y, "Visor damage // " + (int)Math.round(SurvMegaState.visorDamage() * 100) + "%", 0xFFD5EEF4); y += 15;
                 }
-                line(ctx,x,yy,"Visor self-repair requires 5 minutes without damage and armor above 50%.",0xFF9FB4C0);
+                line(ctx, x, y, "Cracks repair after 5 minutes without damage when armor is above 50%.", 0xFF8DA4AD);
             }
-            case "ECHO" -> {
-                line(ctx,x,yy,"Interactive 3D client-world reconstruction.",0xFF8EEAFF);yy+=14;
-                line(ctx,x,yy,"Your real player does not move while ECHO is open.",0xFF9FB4C0);
+            case "WARNINGS" -> {
+                var warning = SurvivalUtilsClient.WARNINGS.active();
+                if (warning == null) {
+                    line(ctx, x, y, "ACTIVE // NONE", 0xFF6FE5A1);
+                } else {
+                    line(ctx, x, y, "ACTIVE // " + warning.severity(), 0xFFFFB86B); y += 15;
+                    wrap(ctx, x, y, w, warning.text(), 0xFFE8F1F4);
+                }
+            }
+            case "INTEL" -> {
+                line(ctx, x, y, "Tracker remembers only player positions your client actually observed.", 0xFF9FB4C0); y += 15;
+                line(ctx, x, y, "ECHO is the 3D loaded-world viewer, not a minigame.", 0xFFB8DDE7); y += 15;
+                line(ctx, x, y, "Tracked players // " + SurvMegaState.tracked().size(), 0xFF7CE1EE);
+            }
+            case "AUTOMATION" -> {
+                line(ctx, x, y, "Macros // " + SurvMegaState.macroFrames() + " recorded frames", 0xFF7CE1EE); y += 15;
+                line(ctx, x, y, "Trap assist // progressive web/box placement", 0xFFB8DDE7); y += 15;
+                line(ctx, x, y, "SURV Script files live in config/surv-os/scripts", 0xFF8DA4AD);
             }
             case "MOB CONTROL" -> {
-                line(ctx,x,yy,"Selected units // "+SurvMegaState.mobUnitCount(),0xFF8EEAFF);yy+=14;
-                line(ctx,x,yy,"Selection and squad tracking are local. Server AI still controls mob targeting.",0xFF9FB4C0);
-            }
-            case "SCRIPT" -> {
-                line(ctx,x,yy,"Folder // config/surv-os/scripts",0xFF8EEAFF);yy+=14;
-                line(ctx,x,yy,"Scripts can create their own tabs with TAB and TEXT commands.",0xFF9FB4C0);yy+=14;
-                line(ctx,x,yy,"They can also append to Library books with APPEND_BOOK.",0xFF9FB4C0);
-            }
-            case "MACROS" -> {
-                line(ctx,x,yy,"State // "+(SurvMegaState.macroRecording()?"RECORDING":SurvMegaState.macroPlaying()?"PLAYING":"IDLE"),0xFF8EEAFF);yy+=14;
-                line(ctx,x,yy,"Frames // "+SurvMegaState.macroFrames(),0xFFB7C7D6);
-            }
-            case "AURA" -> {
-                line(ctx,x,yy,"Place your local track at:",0xFF8EEAFF);yy+=14;
-                line(ctx,x,yy,"config/surv-os/aura/"+SurvMegaState.SETTINGS.auraFile,0xFFEAFBFF);yy+=14;
-                line(ctx,x,yy,"This build uses Java local audio; WAV is the reliable format.",0xFF9FB4C0);
-            }
-            case "TRACKER" -> {
-                int shown=0;
-                for(SurvMegaState.TrackedPlayer t:SurvMegaState.tracked()) {
-                    if(shown++>=10)break;
-                    line(ctx,x,yy,t.name()+" // "+(System.currentTimeMillis()-t.seenAt()<3000?"LIVE":"LAST SEEN")
-                            +" // "+(int)t.x()+" "+(int)t.y()+" "+(int)t.z(),t.spectator()?0xFFFF8C8C:0xFFBFE8FF);
-                    yy+=13;
-                }
-                if(shown==0)line(ctx,x,yy,"No player locations observed yet.",0xFF718894);
-            }
-            case "TRAP" -> {
-                line(ctx,x,yy,"Manual/proximity settings live here. Progressive placement only.",0xFF9FB4C0);yy+=14;
-                line(ctx,x,yy,"Range // "+SurvMegaState.SETTINGS.trapRange+" blocks   Pace // "+SurvMegaState.SETTINGS.trapDelayTicks+" ticks",0xFFBFE8FF);
-            }
-            case "COMPANION" -> {
-                line(ctx,x,yy,"Client-side SURV companion display.",0xFF8EEAFF);yy+=14;
-                line(ctx,x,yy,"Cosmetic + status only; other players do not see it.",0xFF9FB4C0);
-            }
-            case "SATELLITE" -> {
-                var target=SurvMegaState.satelliteTarget(client);
-                line(ctx,x,yy,"Target // "+(target==null?"NONE":target.getName().getString()),0xFF8EEAFF);yy+=14;
-                line(ctx,x,yy,"You choose whether it follows players or hostile mobs.",0xFF9FB4C0);
-            }
-            case "ESPANOL" -> drawSpanish(ctx,x,yy,w);
-            case "LIBRARY" -> drawBook(ctx,x,yy,w);
-            case "WASTELAND" -> {
-                line(ctx,x,yy,"Open-world survival RPG module with local saving.",0xFF8EEAFF);yy+=14;
-                line(ctx,x,yy,"Story is optional; you can explore, scavenge, visit town and maintain power armor.",0xFF9FB4C0);
-            }
-            case "LOG" -> {
-                List<SurvMegaState.LogEntry> logs=SurvMegaState.logs();
-                int start=Math.max(0,logs.size()-12);
-                for(int i=start;i<logs.size();i++) {
-                    var e=logs.get(i);
-                    line(ctx,x,yy,SurvMegaState.time(e.time())+"  "+e.category()+"  "+e.text(),0xFFB7C7D6);yy+=13;
-                }
-                if(logs.isEmpty())line(ctx,x,yy,"Log is empty.",0xFF718894);
-            }
-            case "UTILITIES" -> {
-                line(ctx,x,yy,"The original Survival Utils 2.3 controls remain intact.",0xFF8EEAFF);yy+=14;
-                line(ctx,x,yy,"HUD, threat warnings, stats, water clutch and SeedCrackerX stay available.",0xFF9FB4C0);
+                line(ctx, x, y, "Selected squad // " + MobControlManager.selectedCount(), 0xFF7CE1EE); y += 15;
+                line(ctx, x, y, "Order // " + MobControlManager.queuedOrder(), 0xFFB8DDE7); y += 15;
+                line(ctx, x, y, "Real control works on tameable mobs you own.", 0xFF9FB4C0); y += 15;
+                line(ctx, x, y, "HOLD makes reachable squad members sit; FOLLOW makes them stand and use vanilla follow AI.", 0xFF8DA4AD);
             }
             case "TOOLS" -> {
-                boolean ae=FabricLoader.getInstance().isModLoaded("autoenchanter");
-                boolean tc=FabricLoader.getInstance().isModLoaded("tradecycler");
-                line(ctx,x,yy,"AutoEnchanter // "+(ae?"INSTALLED":"NOT LOADED"),ae?0xFF74F0A6:0xFFFF8C8C);yy+=14;
-                line(ctx,x,yy,"TradeCycler // "+(tc?"INSTALLED":"NOT LOADED"),tc?0xFF74F0A6:0xFFFF8C8C);yy+=14;
-                line(ctx,x,yy,"The final combined JAR can bundle both so their normal keybinds still work.",0xFF9FB4C0);
+                line(ctx, x, y, "AutoEnchanter // " + AutoEnchanterClient.status(), 0xFF7CE1EE); y += 15;
+                line(ctx, x, y, "Villager Cycler // " + TradeCyclerClient.status(), 0xFF7CE1EE); y += 15;
+                line(ctx, x, y, "These are integrated source modules, not hidden nested helper mods.", 0xFF9FB4C0);
             }
-            default -> {
-                if(tab.startsWith("SCRIPT:")) {
-                    String n=tab.substring(7);
-                    SurvMegaState.ScriptTab st=SurvMegaState.scriptTabs().stream().filter(s->s.name().equals(n)).findFirst().orElse(null);
-                    if(st!=null) {
-                        line(ctx,x,yy,"SCRIPT // "+st.sourceFile(),0xFF8EEAFF);yy+=18;
-                        for(String s:st.lines()){wrap(ctx,x,yy,w,s,0xFFB7C7D6);yy+=22;}
-                    }
-                }
+            case "LIBRARY" -> drawBook(ctx, x, y, w);
+            case "SETTINGS" -> {
+                line(ctx, x, y, "Stored data is intentionally easy to clear.", 0xFF9FB4C0); y += 15;
+                line(ctx, x, y, "No game saves exist in this build.", 0xFFB8DDE7);
             }
         }
     }
 
-    private void drawSpanish(DrawContext ctx,int x,int y,int w) {
-        String[][] p={
-                {"A1 // BASICS","Hola = Hello","¿Cómo estás? = How are you?","Estoy bien = I am good"},
-                {"A1 // MINECRAFT","espada = sword","cofre = chest","pico = pickaxe","aldea = village"},
-                {"A1 // USEFUL","No entiendo = I don't understand","Necesito ayuda = I need help","¿Dónde está...? = Where is...?"},
-                {"A1 // VERBS","tener = to have","querer = to want","ir = to go","hacer = to do/make"},
-                {"A1 // PRACTICE","Yo tengo trece años.","Me gusta Minecraft.","Vivo en Texas."},
-                {"A2 PREVIEW","Ayer jugué con mis amigos.","Voy a aprender más español.","Quiero mejorar poco a poco."}
-        };
-        int i=Math.max(0,Math.min(spanishPage,p.length-1));
-        for(String s:p[i]){line(ctx,x,y,s,y==y?0xFF8EEAFF:0xFFB7C7D6);y+=15;}
-        line(ctx,x,y+8,"Lesson "+(i+1)+" / "+p.length,0xFF718894);
-    }
+    private void drawBook(DrawContext ctx, int x, int y, int w) {
+        List<String> lines = SurvMegaState.readBook("under_the_bridge.txt");
+        int per = Math.max(8, (height - y - 35) / 13);
+        int pages = Math.max(1, (lines.size() + per - 1) / per);
+        bookPage = Math.max(0, Math.min(bookPage, pages - 1));
+        int start = bookPage * per;
+        int end = Math.min(lines.size(), start + per);
 
-    private void drawBook(DrawContext ctx,int x,int y,int w) {
-        List<String> lines=SurvMegaState.readBook("under_the_bridge.txt");
-        int per=Math.max(8,(height-y-35)/13);
-        int pages=Math.max(1,(lines.size()+per-1)/per);
-        bookPage=Math.max(0,Math.min(bookPage,pages-1));
-        int start=bookPage*per,end=Math.min(lines.size(),start+per);
-        for(int i=start;i<end;i++) {
-            String s=lines.get(i);
-            int col=(s.startsWith("CHAPTER")||s.equals("UNDER THE BRIDGE"))?0xFF8EEAFF:0xFFD9E7EC;
-            line(ctx,x,y,s,col);y+=13;
+        for (int i = start; i < end; i++) {
+            String s = lines.get(i);
+            int color = s.startsWith("CHAPTER") || s.equals("UNDER THE BRIDGE")
+                    ? 0xFF7CE1EE : 0xFFD9E7EC;
+            line(ctx, x, y, s, color);
+            y += 13;
         }
-        line(ctx,x,y+5,"Page "+(bookPage+1)+" / "+pages+"  •  file: under_the_bridge.txt",0xFF718894);
+        line(ctx, x, y + 5, "Page " + (bookPage + 1) + " / " + pages, 0xFF718894);
     }
 
-    private void line(DrawContext ctx,int x,int y,String s,int color) {
-        if(y<53||y>height-24)return;
-        ctx.drawTextWithShadow(textRenderer,s,x,y,color);
+    private void line(DrawContext ctx, int x, int y, String s, int color) {
+        if (y > height - 24) return;
+        ctx.drawTextWithShadow(textRenderer, s, x, y, color);
     }
 
-    private void wrap(DrawContext ctx,int x,int y,int w,String s,int color) {
-        int max=Math.max(20,w/7);
-        String rem=s;
-        int yy=y;
-        while(rem.length()>max&&yy<height-25) {
-            int cut=rem.lastIndexOf(' ',max);
-            if(cut<10)cut=max;
-            line(ctx,x,yy,rem.substring(0,cut),color);
-            rem=rem.substring(cut).trim();
-            yy+=13;
+    private void wrap(DrawContext ctx, int x, int y, int w, String s, int color) {
+        int max = Math.max(24, w / 7);
+        String remaining = s;
+        int yy = y;
+        while (remaining.length() > max && yy < height - 24) {
+            int cut = remaining.lastIndexOf(' ', max);
+            if (cut < 10) cut = max;
+            line(ctx, x, yy, remaining.substring(0, cut), color);
+            remaining = remaining.substring(cut).trim();
+            yy += 13;
         }
-        line(ctx,x,yy,rem,color);
+        line(ctx, x, yy, remaining, color);
     }
 
-    private int panelLeft(){return Math.max(6,(width-Math.min(760,width-12))/2);}
-    private int panelRight(){return Math.min(width-6,panelLeft()+Math.min(760,width-12));}
+    private int panelLeft() {
+        return Math.max(6, (width - Math.min(780, width - 12)) / 2);
+    }
+
+    private int panelRight() {
+        return Math.min(width - 6, panelLeft() + Math.min(780, width - 12));
+    }
 
     @Override
     public boolean keyPressed(KeyInput input) {
-        int k=input.key();
-        if(k==GLFW.GLFW_KEY_ESCAPE||k==GLFW.GLFW_KEY_F9){close();return true;}
+        int key = input.key();
+        if (key == GLFW.GLFW_KEY_ESCAPE || key == GLFW.GLFW_KEY_F9) {
+            close();
+            return true;
+        }
         return super.keyPressed(input);
     }
 
-    @Override public boolean shouldPause(){return false;}
+    @Override
+    public boolean shouldPause() {
+        return false;
+    }
 }
