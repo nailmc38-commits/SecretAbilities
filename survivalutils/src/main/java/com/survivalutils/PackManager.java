@@ -42,6 +42,7 @@ public final class PackManager {
         commanded=0;
         skipped=0;
         msg(client,(wanted==Order.SIT?"SIT ALL":"FOLLOW / RECALL")+" // queued "+QUEUE.size());
+        ExoAudioManager.packCommand(client);
     }
 
     public static void tick(MinecraftClient client) {
