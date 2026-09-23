@@ -146,7 +146,18 @@ public final class ExoLinkScreen extends Screen {
         button(x,y,half,"CLEAR THREAT DATA",ThreatMemoryManager::clear);
         button(x+half+8,y,half,"CLEAR VISOR DATA",VisorDamageSystem::clear);
 
-        if(warningPage>0) buildWarningPager(x,y+48,w);
+        y+=34;
+        button(x,y,half,"CLEAR BLACKBOX",ExoTelemetry::clearBlackbox);
+        button(x+half+8,y,half,"CLEAR COMBAT HISTORY",ExoTelemetry::clearCombats);
+
+        y+=34;
+        button(x,y,half,"CLEAR ROUTE MEMORY",ExoTelemetry::clearRoute);
+        button(x+half+8,y,half,"CLEAR PORTAL LINKS",ExoTelemetry::clearPortals);
+
+        y+=34;
+        button(x,y,w,"CLEAR RECOVERY TARGET",ExoTelemetry::clearRecovery);
+
+        if(warningPage>0) buildWarningPager(x,y+42,w);
     }
 
     private void buildWarningPager(int x,int y,int w) {
@@ -235,7 +246,10 @@ public final class ExoLinkScreen extends Screen {
             case "SYSTEM"->{
                 line(ctx,x,y,"DATA RETENTION // "+ExoLinkData.SETTINGS.dataRetentionDays+" DAYS",0xFF7DE1EB); y+=15;
                 line(ctx,x,y,"THREAT CONTACTS // "+ThreatMemoryManager.all().size(),0xFFA7C2C7); y+=15;
-                line(ctx,x,y,"EVERY STORED CATEGORY HAS A CLEAR CONTROL.",0xFF829A9E);
+                line(ctx,x,y,"COMBAT RECORDS // "+ExoTelemetry.combats().size()+" // ROUTE POINTS "+ExoTelemetry.route().size(),0xFFA7C2C7); y+=15;
+                line(ctx,x,y,"PORTAL LINKS // "+ExoTelemetry.portals().size()+" // RECOVERY "+(ExoTelemetry.recovery()==null?"NONE":"READY"),0xFFA7C2C7); y+=15;
+                var diag=ExoTelemetry.diagnostics(client);
+                line(ctx,x,y,"DIAGNOSTICS // "+diag.entrySet().stream().filter(e->!"ONLINE".equals(e.getValue())).count()+" ATTENTION",0xFF829A9E);
             }
         }
     }
