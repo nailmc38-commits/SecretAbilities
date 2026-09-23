@@ -142,6 +142,9 @@ public final class ExoLinkScreen extends Screen {
     private void buildSystem(int x,int y,int w) {
         int half=(w-8)/2;
         toggle(x,y,half,"ALL SOUNDS",()->ExoLinkData.SETTINGS.sounds,v->ExoLinkData.SETTINGS.sounds=v);
+        toggle(x+half+8,y,half,"EXO SCRIPT",()->ExoLinkData.SETTINGS.exoScript,v->ExoLinkData.SETTINGS.exoScript=v);
+        y+=34;
+        button(x,y,half,"RELOAD EXO SCRIPTS",()->{ExoScriptEngine.reload();rebuild();});
         toggle(x+half+8,y,half,"PER-SERVER PROFILES",()->ExoLinkData.SETTINGS.perServerProfiles,v->ExoLinkData.SETTINGS.perServerProfiles=v);
         y+=34;
 
@@ -264,6 +267,7 @@ public final class ExoLinkScreen extends Screen {
                 line(ctx,x,y,"THREAT CONTACTS // "+ThreatMemoryManager.all().size(),0xFFA7C2C7); y+=15;
                 line(ctx,x,y,"COMBAT RECORDS // "+ExoTelemetry.combats().size()+" // ROUTE POINTS "+ExoTelemetry.route().size(),0xFFA7C2C7); y+=15;
                 line(ctx,x,y,"PORTAL LINKS // "+ExoTelemetry.portals().size()+" // RECOVERY "+(ExoTelemetry.recovery()==null?"NONE":"READY"),0xFFA7C2C7); y+=15;
+                line(ctx,x,y,"EXO SCRIPT // "+ExoScriptEngine.ruleCount()+" RULES // "+ExoScriptEngine.errorCount()+" ERRORS",ExoScriptEngine.errorCount()==0?0xFF7FE4A2:0xFFFF8C72); y+=15;
                 var diag=ExoTelemetry.diagnostics(client);
                 line(ctx,x,y,"DIAGNOSTICS // "+diag.entrySet().stream().filter(e->!"ONLINE".equals(e.getValue())).count()+" ATTENTION",0xFF829A9E);
             }
