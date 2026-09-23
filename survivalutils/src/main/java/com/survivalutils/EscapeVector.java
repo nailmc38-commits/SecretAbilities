@@ -69,7 +69,7 @@ public final class EscapeVector {
                 score += 2.4;
             }
 
-            Vec3d probe=client.player.getPos().add(dx*8.0,0,dz*8.0);
+            Vec3d probe=new Vec3d(client.player.getX(),client.player.getY(),client.player.getZ()).add(dx*8.0,0,dz*8.0);
             score += threatSeparation(client,probe);
             if (lava) score-=45;
             if (drop) score-=30;
@@ -104,7 +104,7 @@ public final class EscapeVector {
         if(threats.isEmpty()) return 10;
 
         double nearest=threats.stream()
-                .mapToDouble(e->e.getPos().squaredDistanceTo(probe))
+                .mapToDouble(e->new Vec3d(e.getX(),e.getY(),e.getZ()).squaredDistanceTo(probe))
                 .min().orElse(0);
         return Math.min(30,Math.sqrt(nearest)*1.4);
     }
