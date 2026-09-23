@@ -135,6 +135,8 @@ public final class CombatAdvisor {
     }
 
     private static PlayerEntity findPlayerTarget(MinecraftClient client) {
+        PlayerEntity locked=ExoSuitSystems.lockedThreat(client);
+        if(locked!=null&&locked!=client.player&&locked.squaredDistanceTo(client.player)<=64*64) return locked;
         if(client.targetedEntity instanceof PlayerEntity p && p!=client.player) return p;
         return client.world.getPlayers().stream()
                 .filter(p->p!=client.player)
