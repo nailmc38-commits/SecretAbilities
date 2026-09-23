@@ -44,8 +44,10 @@ public final class ExoHudRenderer {
         renderFlight(ctx,client,compact);
         renderRecovery(ctx,client,compact);
         renderWarning(ctx,client,warning,compact);
+        ExoScriptEngine.renderHud(ctx,client);
         VisorDamageSystem.render(ctx,client);
         VisorDamageSystem.renderDirection(ctx,client);
+        ExoBootRenderer.render(ctx,client);
     }
 
     private static void renderFrame(DrawContext ctx,int w,int h,boolean emergency) {
