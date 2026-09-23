@@ -3,8 +3,6 @@ package com.survivalutils;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.input.KeyInput;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
@@ -21,7 +19,7 @@ public final class Echo3DScreen extends Screen {
     private long lastNanos;
 
     public Echo3DScreen(Screen parent) {
-        super(Text.literal("SURV // ECHO 3D"));
+        super(Text.literal("EXO // ECHO 3D"));
         this.parent=parent;
     }
 
@@ -80,7 +78,6 @@ public final class Echo3DScreen extends Screen {
             ctx.fill(sx,Math.max(0,top),Math.min(width,sx+step),Math.min(height,bottom),color);
         }
 
-        drawEntities(ctx,fov);
         drawHud(ctx);
         super.render(ctx,mouseX,mouseY,delta);
     }
@@ -107,48 +104,52 @@ public final class Echo3DScreen extends Screen {
         x=nx;z=nz;
     }
 
-    private void drawEntities(DrawContext ctx,double fov) {
-        for(Entity e:client.world.getEntities()) {
-            if(e==client.player)continue;
-            double ox=e.getX()-x,oz=e.getZ()-z;
-            double dist=Math.sqrt(ox*ox+oz*oz);
-            if(dist<0.2||dist>40)continue;
-            double a=Math.atan2(ox,oz)-angle;
-            while(a>Math.PI)a-=Math.PI*2;
-            while(a<-Math.PI)a+=Math.PI*2;
-            if(Math.abs(a)>fov/2)continue;
-            int sx=(int)(width/2+(a/fov)*width);
-            int size=(int)Math.max(4,42/dist);
-            int sy=height/2-size/2;
-            int color=e instanceof PlayerEntity?0xFF72E6FF:0xFFFFB65A;
-            ctx.fill(sx-size/2,sy,sx+size/2+1,sy+size,color);
-        }
-    }
-
     private int blockColor(BlockPos pos) {
         String id=Registries.BLOCK.getId(client.world.getBlockState(pos).getBlock()).getPath();
-        if(id.contains("lava"))return 0xFFFF5B35;
-        if(id.contains("water"))return 0xFF377CCB;
-        if(id.contains("grass")||id.contains("leaves"))return 0xFF4D8A52;
-        if(id.contains("sand"))return 0xFFC9B677;
+
+        if(id.contains("lava"))return 0xFFFF5638;
+        if(id.contains("water"))return 0xFF3E86D8;
+        if(id.contains("diamond_ore"))return 0xFF5DEAF1;
+        if(id.contains("emerald_ore"))return 0xFF55D982;
+        if(id.contains("gold_ore")||id.contains("raw_gold"))return 0xFFE7C34E;
+        if(id.contains("iron_ore")||id.contains("raw_iron"))return 0xFFD9B58F;
+        if(id.contains("redstone_ore"))return 0xFFE34D4D;
+        if(id.contains("lapis_ore"))return 0xFF426FD1;
+        if(id.contains("copper_ore"))return 0xFFC77B52;
+        if(id.contains("coal_ore"))return 0xFF30373A;
+        if(id.contains("amethyst"))return 0xFF9D72CF;
+        if(id.contains("obsidian"))return 0xFF312B45;
+        if(id.contains("glass"))return 0xFF9AC6CF;
+        if(id.contains("brick"))return 0xFF9B584D;
+        if(id.contains("netherrack"))return 0xFF8D3D43;
+        if(id.contains("basalt")||id.contains("blackstone"))return 0xFF414146;
+        if(id.contains("end_stone"))return 0xFFD8D7A4;
+        if(id.contains("grass")||id.contains("moss")||id.contains("leaves"))return 0xFF4F9758;
+        if(id.contains("dirt")||id.contains("mud"))return 0xFF705341;
+        if(id.contains("sand"))return 0xFFD2BE7E;
+        if(id.contains("snow")||id.contains("ice"))return 0xFFCBE9F1;
         if(id.contains("deepslate"))return 0xFF3B4248;
-        if(id.contains("stone"))return 0xFF6D747A;
-        if(id.contains("wood")||id.contains("plank")||id.contains("log"))return 0xFF8D6747;
-        if(id.contains("ore"))return 0xFF7DB4C8;
-        return 0xFF53636D;
+        if(id.contains("stone")||id.contains("cobblestone"))return 0xFF71797E;
+        if(id.contains("wood")||id.contains("plank")||id.contains("log"))return 0xFF966B47;
+        if(id.contains("wool"))return 0xFFB6B6B6;
+        if(id.contains("ore"))return 0xFF80B4C6;
+        return 0xFF586970;
     }
 
     private void drawHud(DrawContext ctx) {
         ctx.fill(0,0,width,42,0xB8070C11);
-        ctx.drawTextWithShadow(textRenderer,Text.literal("SURV // ECHO 3D").formatted(Formatting.AQUA,Formatting.BOLD),10,9,0xFFFFFFFF);
+        ctx.drawTextWithShadow(textRenderer,Text.literal("EXO // ECHO 3D").formatted(Formatting.AQUA,Formatting.BOLD),10,9,0xFFFFFFFF);
         String pos=String.format(Locale.ROOT,"CAM %.1f  Y %d  %.1f",x,scanY,z);
         ctx.drawTextWithShadow(textRenderer,pos,10,24,0xFF9FB4C0);
-        String info="WASD move • ←/→ turn • PgUp/PgDn slice Y • R reset • F9/ESC return";
+        String info="WASD move • ←/→ turn • PgUp/PgDn Y-slice • R reset • F9/ESC return";
         ctx.drawTextWithShadow(textRenderer,info,Math.max(10,width-textRenderer.getWidth(info)-10),24,0xFF718894);
 
         int cx=width/2,cy=height/2;
         ctx.fill(cx-5,cy,cx+6,cy+1,0xFF7DE3FF);
         ctx.fill(cx,cy-5,cx+1,cy+6,0xFF7DE3FF);
+
+        drawMiniMap(ctx);
+        drawLegend(ctx);
 
         BlockPos p=centerHit();
         if(p!=null) {
@@ -156,6 +157,45 @@ public final class Echo3DScreen extends Screen {
             String s=id+" // "+p.getX()+" "+p.getY()+" "+p.getZ();
             ctx.fill(cx-4,cy+14,cx+textRenderer.getWidth(s)+8,cy+29,0xB3070C11);
             ctx.drawTextWithShadow(textRenderer,s,cx+2,cy+18,0xFFBFE8FF);
+        }
+    }
+
+    private void drawMiniMap(DrawContext ctx) {
+        int size=74;
+        int scale=2;
+        int cells=size/scale;
+        int left=10;
+        int top=50;
+
+        ctx.fill(left-3,top-3,left+size+3,top+size+3,0xB8070C11);
+        ctx.fill(left-3,top-3,left+size+3,top-1,0xFF5DDDE8);
+
+        int half=cells/2;
+        for(int dz=-half;dz<half;dz++) {
+            for(int dx=-half;dx<half;dx++) {
+                BlockPos p=new BlockPos((int)Math.floor(x)+dx,scanY,(int)Math.floor(z)+dz);
+                var state=client.world.getBlockState(p);
+                if(state.isAir())continue;
+                int color=blockColor(p);
+                int px=left+(dx+half)*scale;
+                int py=top+(dz+half)*scale;
+                ctx.fill(px,py,px+scale,py+scale,color);
+            }
+        }
+
+        int cx=left+size/2,cy=top+size/2;
+        ctx.fill(cx-1,cy-1,cx+2,cy+2,0xFFFFFFFF);
+    }
+
+    private void drawLegend(DrawContext ctx) {
+        int x=10;
+        int y=130;
+        String[] names={"STONE","WOOD","WATER","LAVA","ORE","OBSIDIAN"};
+        int[] colors={0xFF71797E,0xFF966B47,0xFF3E86D8,0xFFFF5638,0xFF5DEAF1,0xFF312B45};
+        ctx.fill(x-3,y-3,x+112,y+names.length*12+5,0xA8070C11);
+        for(int i=0;i<names.length;i++) {
+            ctx.fill(x,y+i*12,x+7,y+i*12+7,colors[i]);
+            ctx.drawTextWithShadow(textRenderer,names[i],x+12,y+i*12-1,0xFF9FB4C0);
         }
     }
 
