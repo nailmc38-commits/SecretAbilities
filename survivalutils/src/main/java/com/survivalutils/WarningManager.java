@@ -5,168 +5,110 @@ import net.minecraft.entity.mob.CreeperEntity;
 import net.minecraft.entity.mob.SkeletonEntity;
 import net.minecraft.registry.tag.FluidTags;
 import net.minecraft.text.Text;
-import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.GameMode;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Comparator;
+import java.util.Locale;
 
 public final class WarningManager {
     public enum Severity { INFO, CAUTION, DANGER }
 
     public record Warning(String text, Severity severity, long expiresAt) {}
+    private record Candidate(String key, String text, Severity severity, int priority) {}
 
-    private final Map<String, Long> cooldowns = new HashMap<>();
     private Warning active;
-    private ThreatAnalyzer.Level lastThreat = ThreatAnalyzer.Level.CLEAR;
+    private String activeKey = "";
+    private long lastActionbarAt;
+    private String lastActionbarKey = "";
     private int ticks;
 
     public Warning active() {
-        if (active != null && System.currentTimeMillis() > active.expiresAt()) active = null;
+        if (active != null && System.currentTimeMillis() > active.expiresAt()) {
+            active = null;
+            activeKey = "";
+        }
         return active;
     }
 
     public void tick(MinecraftClient client) {
         if (client.player == null || client.world == null) {
             active = null;
+            activeKey = "";
             return;
         }
 
-        if (++ticks % 20 != 0) return;
+        // Check 5 times per second so fast threats such as falls/creepers are not missed.
+        if (++ticks % 4 != 0) return;
 
         SurvivalConfig cfg = SurvivalUtilsClient.CONFIG;
         var p = client.player;
-
-        ThreatAnalyzer.Snapshot threat = ThreatAnalyzer.analyze(client);
+        var threat = ThreatAnalyzer.analyze(client);
+        Candidate best = null;
 
         if (cfg.isEnabled(Feature.FIRE_ALERT) && p.isOnFire()) {
-            push(client, "fire", "WARNING // ON FIRE // I recommend reaching water or using fire resistance.", Severity.DANGER);
-            return;
+            best = better(best, c("fire",
+                    "WARNING // ON FIRE // REACH WATER OR USE FIRE RESISTANCE",
+                    Severity.DANGER, 100));
         }
 
         if (cfg.isEnabled(Feature.DROWNING_ALERT) && p.getAir() < 80) {
-            push(client, "air", "WARNING // AIR CRITICAL // I recommend surfacing immediately.", Severity.DANGER);
-            return;
+            best = better(best, c("air",
+                    "WARNING // AIR CRITICAL // SURFACE NOW",
+                    Severity.DANGER, 100));
         }
 
         if (cfg.isEnabled(Feature.FALL_ALERT)
-                && p.fallDistance >= 8f
-                && p.getVelocity().y < -0.45) {
-            String clutch = SurvivalUtilsClient.AUTO_CLUTCH.status();
-            push(client, "fall",
+                && p.fallDistance >= 7f
+                && p.getVelocity().y < -0.42) {
+            best = better(best, c("fall",
                     "WARNING // DANGEROUS FALL "
-                            + String.format(java.util.Locale.ROOT, "%.1fm", p.fallDistance)
-                            + " // CLUTCH " + clutch,
-                    Severity.DANGER);
-            return;
-        }
-
-        if (cfg.isEnabled(Feature.LAVA_ALERT) && lavaNearby(client)) {
-            push(client, "lava",
-                    "WARNING // LAVA NEARBY // I recommend slowing down and keeping blocks or water ready.",
-                    Severity.CAUTION);
-            return;
+                            + String.format(Locale.ROOT, "%.1fm", p.fallDistance)
+                            + " // CLUTCH " + SurvivalUtilsClient.AUTO_CLUTCH.status(),
+                    Severity.DANGER, 96));
         }
 
         if (cfg.isEnabled(Feature.LOW_HEALTH_ALERT) && p.getHealth() <= 8f) {
-            push(client, "health", "WARNING // LOW HEALTH // I recommend disengaging and healing.", Severity.DANGER);
-            return;
-        }
-
-        if (cfg.isEnabled(Feature.DURABILITY_ALERT)) {
-            var held = p.getMainHandStack();
-            if (!held.isEmpty() && held.isDamageable()) {
-                int pct = InventoryUtil.durabilityPercent(held);
-                if (pct <= 10) {
-                    push(client, "durability",
-                            "WARNING // " + held.getName().getString() + " at " + pct + "% // I recommend repairing or switching tools.",
-                            Severity.CAUTION);
-                    return;
-                }
-            }
-        }
-
-        if (cfg.isEnabled(Feature.INVENTORY_FULL_ALERT) && InventoryUtil.freeSlots(p) <= 2) {
-            push(client, "inventory", "WARNING // INVENTORY ALMOST FULL // I recommend storing or dropping low-value items.", Severity.CAUTION);
-            return;
-        }
-
-        if (cfg.isEnabled(Feature.LOW_HUNGER_ALERT) && p.getHungerManager().getFoodLevel() <= 6) {
-            push(client, "hunger", "WARNING // LOW FOOD // I recommend eating before continuing.", Severity.CAUTION);
-            return;
-        }
-
-        if (cfg.isEnabled(Feature.CREEPER_ALERT)) {
-            int creepers = client.world.getEntitiesByClass(
-                    CreeperEntity.class,
-                    p.getBoundingBox().expand(8),
-                    e -> e.isAlive()).size();
-
-            if (creepers > 0) {
-                push(client, "creeper", "WARNING // CREEPER CLOSE // I recommend creating distance.", Severity.DANGER);
-                return;
-            }
-        }
-
-        if (cfg.isEnabled(Feature.SKELETON_ALERT)) {
-            int skeletons = client.world.getEntitiesByClass(
-                    SkeletonEntity.class,
-                    p.getBoundingBox().expand(12),
-                    e -> e.isAlive()).size();
-
-            if (skeletons > 0) {
-                push(client, "skeleton", "WARNING // RANGED HOSTILE DETECTED // I recommend using cover or a shield.", Severity.CAUTION);
-                return;
-            }
-        }
-
-        if (cfg.isEnabled(Feature.NO_TOTEM_ALERT)
-                && threat.level().ordinal() >= ThreatAnalyzer.Level.HIGH.ordinal()
-                && InventoryUtil.count(p, "totem_of_undying") <= 0) {
-            push(client, "totem", "WARNING // HIGH THREAT WITH NO TOTEM // I recommend disengaging.", Severity.DANGER);
-            return;
-        }
-
-        if (cfg.isEnabled(Feature.NIGHT_WARNING)) {
-            long t = Math.floorMod(client.world.getTimeOfDay(), 24000L);
-            if (t < 13000L) {
-                int seconds = (int)Math.round((13000L - t) / 20.0);
-                if (seconds <= 60) {
-                    push(client, "night", "NIGHT IN " + seconds + "s // I recommend finding shelter or preparing for combat.", Severity.INFO);
-                }
-            }
-        }
-
-        if (cfg.isEnabled(Feature.LIGHT_WARNING)
-                && client.world.getLightLevel(p.getBlockPos()) <= 3) {
-            push(client, "light", "LOW LIGHT // hostile spawn risk is elevated.", Severity.INFO);
+            best = better(best, c("health",
+                    "WARNING // LOW HEALTH // DISENGAGE AND HEAL",
+                    Severity.DANGER, 94));
         }
 
         if (cfg.isEnabled(Feature.SPECTATOR_ALERT) && client.getNetworkHandler() != null) {
             String self = p.getGameProfile().name();
-
             for (var entry : client.getNetworkHandler().getPlayerList()) {
                 if (entry.getGameMode() != GameMode.SPECTATOR) continue;
-
                 String name = entry.getProfile().name();
                 if (name == null || name.equalsIgnoreCase(self)) continue;
 
                 String extra = "";
                 var visible = client.world.getPlayers().stream()
                         .filter(other -> other != p && other.getGameProfile().name().equalsIgnoreCase(name))
-                        .findFirst()
-                        .orElse(null);
-
+                        .findFirst().orElse(null);
                 if (visible != null) {
-                    double distance = Math.sqrt(p.squaredDistanceTo(visible));
-                    extra = " // " + String.format(java.util.Locale.ROOT, "%.1fm away", distance);
+                    extra = " // " + String.format(Locale.ROOT, "%.1fm", Math.sqrt(p.squaredDistanceTo(visible)));
                 }
-
-                push(client, "spec:" + name,
-                        "WARNING // [SPEC] " + name + extra + " // spectator detected.",
-                        Severity.DANGER);
+                best = better(best, c("spec:" + name,
+                        "WARNING // SPECTATOR " + name + extra + " // DETECTED",
+                        Severity.DANGER, 92));
                 break;
+            }
+        }
+
+        if (cfg.isEnabled(Feature.CREEPER_ALERT)) {
+            var nearest = client.world.getEntitiesByClass(
+                    CreeperEntity.class,
+                    p.getBoundingBox().expand(8),
+                    e -> e.isAlive()).stream()
+                    .min(Comparator.comparingDouble(p::squaredDistanceTo))
+                    .orElse(null);
+            if (nearest != null) {
+                double d = Math.sqrt(p.squaredDistanceTo(nearest));
+                best = better(best, c("creeper",
+                        "WARNING // CREEPER // " + String.format(Locale.ROOT, "%.1fm", d)
+                                + " // CREATE DISTANCE",
+                        Severity.DANGER, 90));
             }
         }
 
@@ -175,7 +117,7 @@ public final class WarningManager {
                     .filter(other -> other != p)
                     .filter(other -> other.squaredDistanceTo(p)
                             <= cfg.playerRadarRadius * cfg.playerRadarRadius)
-                    .min(java.util.Comparator.comparingDouble(p::squaredDistanceTo))
+                    .min(Comparator.comparingDouble(p::squaredDistanceTo))
                     .orElse(null);
 
             if (nearest != null) {
@@ -184,72 +126,156 @@ public final class WarningManager {
                     var info = client.getNetworkHandler().getPlayerListEntry(nearest.getUuid());
                     spectator = info != null && info.getGameMode() == GameMode.SPECTATOR;
                 }
-
                 if (!spectator) {
-                    String name = nearest.getGameProfile().name();
                     double distance = Math.sqrt(p.squaredDistanceTo(nearest));
-                    push(client, "player:" + name,
+                    String name = nearest.getGameProfile().name();
+                    Severity sev = distance <= 8 ? Severity.DANGER : Severity.CAUTION;
+                    int priority = distance <= 8 ? 88 : 75;
+                    best = better(best, c("player:" + name,
                             "PLAYER NEAR // " + name + " // "
-                                    + String.format(java.util.Locale.ROOT, "%.1fm", distance),
-                            Severity.CAUTION);
+                                    + String.format(Locale.ROOT, "%.1fm", distance),
+                            sev, priority));
                 }
             }
+        }
+
+        if (cfg.isEnabled(Feature.NO_TOTEM_ALERT)
+                && threat.level().ordinal() >= ThreatAnalyzer.Level.HIGH.ordinal()
+                && InventoryUtil.count(p, "totem_of_undying") <= 0) {
+            best = better(best, c("totem",
+                    "WARNING // HIGH THREAT + NO TOTEM // DISENGAGE",
+                    Severity.DANGER, 84));
         }
 
         if (cfg.isEnabled(Feature.THREAT_ALERT)
                 && threat.level().ordinal() >= ThreatAnalyzer.Level.HIGH.ordinal()) {
-            boolean increased = threat.level().ordinal() > lastThreat.ordinal();
-            if (increased || allowed("threat")) {
-                push(client, "threat",
-                        "WARNING // THREAT " + threat.level()
-                                + " // SCORE " + threat.score()
-                                + " // " + threat.recommendation(),
-                        threat.level() == ThreatAnalyzer.Level.CRITICAL
-                                ? Severity.DANGER
-                                : Severity.CAUTION);
+            best = better(best, c("threat",
+                    "WARNING // THREAT " + threat.level()
+                            + " // SCORE " + threat.score()
+                            + " // " + threat.recommendation(),
+                    threat.level() == ThreatAnalyzer.Level.CRITICAL
+                            ? Severity.DANGER : Severity.CAUTION,
+                    threat.level() == ThreatAnalyzer.Level.CRITICAL ? 82 : 68));
+        }
+
+        if (cfg.isEnabled(Feature.LAVA_ALERT) && lavaNearby(client)) {
+            best = better(best, c("lava",
+                    "WARNING // LAVA VERY CLOSE // SLOW DOWN",
+                    Severity.CAUTION, 64));
+        }
+
+        if (cfg.isEnabled(Feature.SKELETON_ALERT)) {
+            var nearest = client.world.getEntitiesByClass(
+                    SkeletonEntity.class,
+                    p.getBoundingBox().expand(12),
+                    e -> e.isAlive()).stream()
+                    .min(Comparator.comparingDouble(p::squaredDistanceTo))
+                    .orElse(null);
+            if (nearest != null) {
+                double d = Math.sqrt(p.squaredDistanceTo(nearest));
+                best = better(best, c("skeleton",
+                        "RANGED HOSTILE // SKELETON // "
+                                + String.format(Locale.ROOT, "%.1fm", d)
+                                + " // USE COVER OR SHIELD",
+                        Severity.CAUTION, 58));
             }
         }
 
-        lastThreat = threat.level();
-    }
-
-    private boolean lavaNearby(MinecraftClient client) {
-        if (client.player == null || client.world == null) return false;
-
-        BlockPos base = client.player.getBlockPos();
-
-        for (int y = -1; y <= 1; y++) {
-            for (int x = -2; x <= 2; x++) {
-                for (int z = -2; z <= 2; z++) {
-                    BlockPos pos = base.add(x, y, z);
-                    if (client.world.getFluidState(pos).isIn(FluidTags.LAVA)) {
-                        return true;
-                    }
+        if (cfg.isEnabled(Feature.DURABILITY_ALERT)) {
+            var held = p.getMainHandStack();
+            if (!held.isEmpty() && held.isDamageable()) {
+                int pct = InventoryUtil.durabilityPercent(held);
+                if (pct <= 10) {
+                    best = better(best, c("durability",
+                            "LOW DURABILITY // " + held.getName().getString()
+                                    + " // " + pct + "%",
+                            Severity.CAUTION, 48));
                 }
             }
         }
 
-        return false;
-    }
+        if (cfg.isEnabled(Feature.LOW_HUNGER_ALERT)
+                && p.getHungerManager().getFoodLevel() <= 6) {
+            best = better(best, c("hunger",
+                    "LOW FOOD // EAT BEFORE CONTINUING",
+                    Severity.CAUTION, 44));
+        }
 
-    private boolean allowed(String key) {
-        return System.currentTimeMillis() >= cooldowns.getOrDefault(key, 0L);
-    }
+        if (cfg.isEnabled(Feature.INVENTORY_FULL_ALERT)
+                && InventoryUtil.freeSlots(p) <= 2) {
+            best = better(best, c("inventory",
+                    "INVENTORY ALMOST FULL // " + InventoryUtil.freeSlots(p) + " SLOTS",
+                    Severity.CAUTION, 40));
+        }
 
-    private void push(MinecraftClient client, String key, String text, Severity severity) {
+        if (cfg.isEnabled(Feature.NIGHT_WARNING)) {
+            long t = Math.floorMod(client.world.getTimeOfDay(), 24000L);
+            if (t < 13000L) {
+                int seconds = (int)Math.round((13000L - t) / 20.0);
+                if (seconds <= 60) {
+                    best = better(best, c("night",
+                            "NIGHT IN " + seconds + "s // PREPARE OR FIND SHELTER",
+                            Severity.INFO, 24));
+                }
+            }
+        }
+
+        if (cfg.isEnabled(Feature.LIGHT_WARNING)
+                && client.world.getLightLevel(p.getBlockPos()) <= 3) {
+            best = better(best, c("light",
+                    "LOW LIGHT // HOSTILE SPAWN RISK",
+                    Severity.INFO, 12));
+        }
+
+        if (best == null) {
+            active = null;
+            activeKey = "";
+            return;
+        }
+
         long now = System.currentTimeMillis();
-        if (now < cooldowns.getOrDefault(key, 0L)) return;
+        // Keep the banner alive while the condition remains true.
+        active = new Warning(best.text(), best.severity(), now + 700L);
+        activeKey = best.key();
 
-        cooldowns.put(key, now + SurvivalUtilsClient.CONFIG.warningCooldownSeconds * 1000L);
-        active = new Warning(text, severity, now + 4200L);
+        long repeatMs = switch (best.severity()) {
+            case DANGER -> 2500L;
+            case CAUTION -> Math.max(4000L, cfg.warningCooldownSeconds * 1000L);
+            case INFO -> Math.max(8000L, cfg.warningCooldownSeconds * 1000L);
+        };
 
-        if (SurvivalUtilsClient.CONFIG.warningActionbar && client.player != null) {
-            Formatting color = switch (severity) {
+        boolean changed = !best.key().equals(lastActionbarKey);
+        if (cfg.warningActionbar && (changed || now - lastActionbarAt >= repeatMs)) {
+            Formatting color = switch (best.severity()) {
                 case INFO -> Formatting.YELLOW;
                 case CAUTION -> Formatting.GOLD;
                 case DANGER -> Formatting.RED;
             };
-            client.player.sendMessage(Text.literal(text).formatted(color, Formatting.BOLD), true);
+            p.sendMessage(Text.literal(best.text()).formatted(color, Formatting.BOLD), true);
+            lastActionbarAt = now;
+            lastActionbarKey = best.key();
+            SurvMegaState.log("WARNING", best.text());
         }
+    }
+
+    private Candidate c(String key, String text, Severity severity, int priority) {
+        return new Candidate(key, text, severity, priority);
+    }
+
+    private Candidate better(Candidate a, Candidate b) {
+        if (a == null) return b;
+        return b.priority() > a.priority() ? b : a;
+    }
+
+    private boolean lavaNearby(MinecraftClient client) {
+        BlockPos base = client.player.getBlockPos();
+        for (int y=-1;y<=1;y++) {
+            for (int x=-2;x<=2;x++) {
+                for (int z=-2;z<=2;z++) {
+                    if (client.world.getFluidState(base.add(x,y,z)).isIn(FluidTags.LAVA)) return true;
+                }
+            }
+        }
+        return false;
     }
 }
