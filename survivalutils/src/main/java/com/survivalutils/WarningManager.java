@@ -94,7 +94,7 @@ public final class WarningManager {
                 "HOSTILE BEHIND // "+behindHostile.getName().getString()+" // "+fmt(Math.sqrt(p.squaredDistanceTo(behindHostile))),
                 Severity.DANGER,79);
 
-        List<PlayerEntity> players=client.world.getPlayers().stream()
+        var players=client.world.getPlayers().stream()
                 .filter(o->o!=p&&o.squaredDistanceTo(p)<=32*32).toList();
 
         PlayerEntity nearestPlayer=players.stream().min(Comparator.comparingDouble(p::squaredDistanceTo)).orElse(null);
@@ -161,7 +161,7 @@ public final class WarningManager {
         if(chest.isOf(Items.ELYTRA)) {
             add(found,"elytra_critical",chest.isDamageable()&&InventoryUtil.durabilityPercent(chest)<=12,
                     "ELYTRA CRITICAL // "+InventoryUtil.durabilityPercent(chest)+"%",Severity.CRITICAL,91);
-            add(found,"low_rockets_flying",p.isFallFlying()&&InventoryUtil.count(p,"firework_rocket")<=4,
+            add(found,"low_rockets_flying",!p.isOnGround()&&InventoryUtil.count(p,"firework_rocket")<=4,
                     "FLIGHT // LOW ROCKETS // "+InventoryUtil.count(p,"firework_rocket"),Severity.DANGER,75);
         }
 
