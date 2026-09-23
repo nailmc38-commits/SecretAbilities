@@ -1,8 +1,8 @@
-name: Build Survival Utils V2
+name: Build SURV OS Mega
 
 on:
   push:
-    branches: [ survival-utils-v2 ]
+    branches: [ surv-os-mega ]
   workflow_dispatch:
 
 jobs:
@@ -29,6 +29,6 @@ jobs:
       - name: Upload JAR
         uses: actions/upload-artifact@v4
         with:
-          name: Survival-Utils-V2-1.21.11
+          name: SURV-OS-Mega-1.21.11
           path: build/libs/*.jar
           if-no-files-found: error
