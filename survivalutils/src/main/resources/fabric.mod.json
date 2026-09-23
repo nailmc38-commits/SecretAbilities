@@ -2,16 +2,27 @@
   "schemaVersion": 1,
   "id": "survivalutils",
   "version": "${version}",
-  "name": "SURV // OS Mega",
-  "description": "Client-side survival operating system with Advisor, EXO visor, ECHO 3D, Wasteland, macros, tracker, scripting, library, Spanish study, mob tools and the original Survival Utils systems.",
-  "authors": ["Neil"],
+  "name": "SURV // OS",
+  "description": "Organized client-side survival HUD and visor system with prioritized warnings, Advisor, ECHO, tracker, automation, tame-mob squad controls, AutoEnchanter, TradeCycler, SeedCrackerX, scripts and library.",
+  "authors": [
+    "Neil"
+  ],
   "license": "All Rights Reserved",
   "environment": "client",
   "entrypoints": {
-    "client": ["com.survivalutils.SurvivalUtilsClient"]
+    "client": [
+      "com.survivalutils.SurvivalUtilsClient",
+      "com.secret.autoenchanter.AutoEnchanterClient",
+      "com.secret.tradecycler.TradeCyclerClient"
+    ]
   },
   "jars": [
-    { "file": "META-INF/jars/seedcrackerX-2.15.6.jar" }
+    {
+      "file": "META-INF/jars/seedcrackerX-2.15.6.jar"
+    },
+    {
+      "file": "META-INF/jars/clientcommands-2.13.2.jar"
+    }
   ],
   "depends": {
     "fabricloader": ">=0.18.4",
