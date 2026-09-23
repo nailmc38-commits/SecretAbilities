@@ -72,7 +72,7 @@ public final class VisorDamageSystem {
 
         Entity attacker=client.player.getAttacker();
         if(attacker!=null) {
-            Vec3d to=attacker.getPos().subtract(client.player.getPos());
+            Vec3d to=new Vec3d(attacker.getX(),attacker.getY(),attacker.getZ()).subtract(new Vec3d(client.player.getX(),client.player.getY(),client.player.getZ()));
             double angle=Math.toDegrees(Math.atan2(to.z,to.x))-client.player.getYaw();
             while(angle>180)angle-=360;
             while(angle<-180)angle+=360;
