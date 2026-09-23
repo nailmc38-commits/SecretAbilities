@@ -31,10 +31,19 @@ public final class WarningManager {
     private int ticks;
     private float lastHealth=-1;
     private int previousPing=-1;
+    private Warning testOverride;
 
     public Warning active() {
+        if(testOverride!=null && System.currentTimeMillis()<=testOverride.expiresAt()) return testOverride;
+        if(testOverride!=null) testOverride=null;
         if(active!=null && System.currentTimeMillis()>active.expiresAt()) active=null;
         return active;
+    }
+
+    public void test(Severity severity) {
+        long now=System.currentTimeMillis();
+        int priority=switch(severity){case CRITICAL->100;case DANGER->90;case CAUTION->60;case INFO->20;};
+        testOverride=new Warning("system_test","SYSTEM TEST // "+severity,severity,priority,now+4000);
     }
 
     public void tick(MinecraftClient client) {
