@@ -163,6 +163,13 @@ public final class VisorDamageSystem {
         }
     }
 
+    public static void testImpact(MinecraftClient client) {
+        if(client==null||client.player==null)return;
+        ensureLoaded();
+        addImpact(client,0.58);
+        lastDamageAt=System.currentTimeMillis();
+    }
+
     public static int damagePercent() {
         double sum=0;
         for(Impact i:IMPACTS)sum+=i.severity;
