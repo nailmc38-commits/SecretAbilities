@@ -11,10 +11,13 @@ import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.registry.Registries;
+import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.GameMode;
 
 import javax.sound.sampled.AudioInputStream;
@@ -54,6 +57,8 @@ public final class SurvMegaState {
     private static int macroIndex;
     private static Clip auraClip;
     private static boolean auraPlaying;
+    private static int trapTicker;
+    private static int trapPhase;
     private static String lastDimension = "";
     private static long lastSaveAt;
 
@@ -71,6 +76,8 @@ public final class SurvMegaState {
         public boolean scripts = true;
         public boolean mobControl = true;
         public boolean trap = false;
+        public boolean trapWeb = true;
+        public boolean trapBox = true;
         public boolean companion = true;
         public boolean satellite = true;
         public boolean satellitePlayers = true;
@@ -134,6 +141,8 @@ public final class SurvMegaState {
         dst.scripts = src.scripts;
         dst.mobControl = src.mobControl;
         dst.trap = src.trap;
+        dst.trapWeb = src.trapWeb;
+        dst.trapBox = src.trapBox;
         dst.companion = src.companion;
         dst.satellite = src.satellite;
         dst.satellitePlayers = src.satellitePlayers;
@@ -205,6 +214,7 @@ public final class SurvMegaState {
         if (SETTINGS.advisor && ticks % 4 == 0) updateRecommendation(c);
         if (SETTINGS.macros) tickMacro(c);
         if (SETTINGS.aura) tickAura(c);
+        if (SETTINGS.trap) tickTrap(c);
 
         String dim = c.world.getRegistryKey().getValue().toString();
         if (!dim.equals(lastDimension)) {
@@ -592,9 +602,87 @@ public final class SurvMegaState {
 
     private static void stopOwnedKeys(MinecraftClient c) {
         if(c==null||c.options==null)return;
-        if(!macroPlaying)return;
         c.options.forwardKey.setPressed(false);c.options.backKey.setPressed(false);c.options.leftKey.setPressed(false);c.options.rightKey.setPressed(false);
         c.options.jumpKey.setPressed(false);c.options.sneakKey.setPressed(false);c.options.useKey.setPressed(false);c.options.attackKey.setPressed(false);
+    }
+
+
+    private static void tickTrap(MinecraftClient c) {
+        if (c.player == null || c.world == null || c.interactionManager == null || c.currentScreen != null) return;
+        PlayerEntity target = nearbyPlayer(c, SETTINGS.trapRange);
+        if (target == null) {
+            trapTicker = 0;
+            trapPhase = 0;
+            return;
+        }
+
+        trapTicker++;
+        if (trapTicker < Math.max(2, SETTINGS.trapDelayTicks)) return;
+        trapTicker = 0;
+
+        BlockPos base = BlockPos.ofFloored(target.getX(), target.getY(), target.getZ());
+        BlockPos desired;
+        String item;
+
+        if (SETTINGS.trapWeb && trapPhase == 0) {
+            desired = base;
+            item = "cobweb";
+        } else {
+            if (!SETTINGS.trapBox) {
+                trapPhase = 0;
+                return;
+            }
+            int phase = SETTINGS.trapWeb ? trapPhase - 1 : trapPhase;
+            desired = switch (Math.floorMod(phase, 5)) {
+                case 0 -> base.east();
+                case 1 -> base.west();
+                case 2 -> base.north();
+                case 3 -> base.south();
+                default -> base.up(2);
+            };
+            item = "obsidian";
+        }
+
+        trapPhase = (trapPhase + 1) % (SETTINGS.trapWeb && SETTINGS.trapBox ? 6 : (SETTINGS.trapWeb ? 1 : 5));
+        if (!c.world.getBlockState(desired).isAir()) return;
+
+        int slot = findHotbarSlot(c.player, item);
+        if (slot < 0) return;
+
+        Direction attach = null;
+        BlockPos neighbor = null;
+        for (Direction d : Direction.values()) {
+            BlockPos n = desired.offset(d);
+            var state = c.world.getBlockState(n);
+            if (!state.isAir() && !state.getCollisionShape(c.world, n).isEmpty()) {
+                neighbor = n;
+                attach = d.getOpposite();
+                break;
+            }
+        }
+        if (neighbor == null || attach == null) return;
+
+        int old = c.player.getInventory().getSelectedSlot();
+        c.player.getInventory().setSelectedSlot(slot);
+
+        Vec3d hitPos = Vec3d.ofCenter(neighbor).add(
+                attach.getOffsetX() * 0.5,
+                attach.getOffsetY() * 0.5,
+                attach.getOffsetZ() * 0.5
+        );
+        BlockHitResult hit = new BlockHitResult(hitPos, attach, neighbor, false);
+        c.interactionManager.interactBlock(c.player, Hand.MAIN_HAND, hit);
+        c.player.swingHand(Hand.MAIN_HAND);
+        c.player.getInventory().setSelectedSlot(old);
+    }
+
+    private static int findHotbarSlot(PlayerEntity player, String keyword) {
+        String q = keyword.toLowerCase(Locale.ROOT);
+        for (int i = 0; i < 9; i++) {
+            ItemStack stack = player.getInventory().getStack(i);
+            if (!stack.isEmpty() && InventoryUtil.id(stack).contains(q)) return i;
+        }
+        return -1;
     }
 
     public static void reloadScripts() {
