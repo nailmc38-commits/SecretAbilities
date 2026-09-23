@@ -514,23 +514,53 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
         int color = switch (warning.severity()) {
             case INFO -> 0xFFFFE27A;
             case CAUTION -> 0xFFFFB45D;
-            case DANGER -> 0xFFFF5D5D;
+            case DANGER -> 0xFFFF4E4E;
         };
 
-        int width = client.textRenderer.getWidth(warning.text()) + 16;
-        int left = (ctx.getScaledWindowWidth() - width) / 2;
-        int top = CONFIG.isEnabled(Feature.HELMET_OVERLAY) && !InventoryUtil.helmet(client.player).isEmpty()
-                ? 96
-                : 10;
+        int screenW = ctx.getScaledWindowWidth();
+        int textW = client.textRenderer.getWidth(warning.text());
+        int width = Math.min(screenW - 20, textW + 24);
+        int left = (screenW - width) / 2;
 
-        ctx.fill(left, top, left + width, top + 22, 0xD2080D12);
-        ctx.fill(left, top, left + width, top + 2, color);
-        ctx.drawCenteredTextWithShadow(
-                client.textRenderer,
-                warning.text(),
-                ctx.getScaledWindowWidth() / 2,
-                top + 7,
-                color);
+        int helmetOffset = CONFIG.isEnabled(Feature.HELMET_OVERLAY)
+                && !InventoryUtil.helmet(client.player).isEmpty() ? 96 : 10;
+        int top = helmetOffset;
+
+        boolean danger = warning.severity() == WarningManager.Severity.DANGER;
+        int height = danger ? 28 : 23;
+        int bg = danger ? 0xE20B0E12 : 0xD2080D12;
+
+        ctx.fill(left, top, left + width, top + height, bg);
+        ctx.fill(left, top, left + width, top + 3, color);
+        ctx.fill(left, top, left + 3, top + height, color);
+        ctx.fill(left + width - 3, top, left + width, top + height, color);
+
+        if (danger) {
+            long phase = (System.currentTimeMillis() / 180L) & 1L;
+            if (phase == 0L) {
+                ctx.fill(0, 0, 3, ctx.getScaledWindowHeight(), 0x88FF3030);
+                ctx.fill(screenW - 3, 0, screenW, ctx.getScaledWindowHeight(), 0x88FF3030);
+            }
+            ctx.drawCenteredTextWithShadow(
+                    client.textRenderer,
+                    "⚠ DANGER",
+                    screenW / 2,
+                    top + 5,
+                    color);
+            ctx.drawCenteredTextWithShadow(
+                    client.textRenderer,
+                    warning.text(),
+                    screenW / 2,
+                    top + 16,
+                    0xFFFFFFFF);
+        } else {
+            ctx.drawCenteredTextWithShadow(
+                    client.textRenderer,
+                    warning.text(),
+                    screenW / 2,
+                    top + 8,
+                    color);
+        }
     }
 
     private static String armorDurabilityLine(net.minecraft.entity.player.PlayerEntity player) {
