@@ -327,9 +327,9 @@ public final class SurvMegaState {
     public static void render(DrawContext ctx, MinecraftClient c) {
         ensureLoaded();
         if (c == null || c.player == null || c.world == null) return;
-        if (SETTINGS.visorDamage) renderVisorDamage(ctx);
-        if (SETTINGS.advisor) renderAdvisor(ctx, c);
-        if (SETTINGS.exo) renderExo(ctx, c);
+
+        // Preserve the original Survival Utils HUD. New visuals are layered around it.
+        PowerArmorOverlay.render(ctx, c);
         if (SETTINGS.identify) renderIdentify(ctx, c);
         if (SETTINGS.companion) renderCompanion(ctx, c);
         if (SETTINGS.satellite) renderSatellite(ctx, c);
