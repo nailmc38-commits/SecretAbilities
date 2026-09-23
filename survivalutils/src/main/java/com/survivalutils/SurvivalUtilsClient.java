@@ -56,16 +56,17 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
 
     private static void tick(MinecraftClient client) {
         while (menuKey.wasPressed()) {
-            if (client.currentScreen instanceof SurvivalUtilsScreen) {
+            if (client.currentScreen instanceof SurvMegaHubScreen) {
                 client.setScreen(null);
             } else {
-                client.setScreen(new SurvivalUtilsScreen());
+                client.setScreen(new SurvMegaHubScreen());
             }
         }
 
         STATS.tick(client);
         AUTO_CLUTCH.tick(client);
         WARNINGS.tick(client);
+        SurvMegaState.tick(client);
     }
 
     private static void renderHud(DrawContext ctx, RenderTickCounter counter) {
@@ -76,6 +77,7 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
         if (CONFIG.isEnabled(Feature.STATS_PANEL)) renderStatsHud(ctx, client);
         if (CONFIG.isEnabled(Feature.HELMET_OVERLAY)) renderHelmetHud(ctx, client);
         renderWarningBanner(ctx, client);
+        SurvMegaState.render(ctx, client);
     }
 
     private static void renderMainHud(DrawContext ctx, MinecraftClient client) {
