@@ -79,10 +79,11 @@ public final class ExoLinkScreen extends Screen {
         toggle(x,y,half,"UI ANIMATIONS",()->ExoLinkData.SETTINGS.hudAnimations,v->ExoLinkData.SETTINGS.hudAnimations=v);
         button(x+half+8,y,half,"CLEAR VISOR DAMAGE",VisorDamageSystem::clear);
         y+=34;
-        button(x,y,w,"VISOR MODE // "+ExoSuitSystems.configuredMode()+" // CLICK TO CYCLE",()->{
+        button(x,y,half,"VISOR MODE // "+ExoSuitSystems.configuredMode(),()->{
             ExoSuitSystems.cycleMode();
             rebuild();
         });
+        button(x+half+8,y,half,"EDIT HUD LAYOUT",()->client.setScreen(new HudLayoutEditorScreen(this)));
     }
 
     private void buildIntel(int x,int y,int w) {
