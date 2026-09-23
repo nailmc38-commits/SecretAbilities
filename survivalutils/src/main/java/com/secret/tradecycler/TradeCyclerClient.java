@@ -3,11 +3,9 @@ package com.secret.tradecycler;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.block.Blocks;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.util.InputUtil;
+import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.component.type.ItemEnchantmentsComponent;
 import net.minecraft.enchantment.Enchantment;
 import net.minecraft.enchantment.EnchantmentHelper;
@@ -29,7 +27,6 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.Box;
 import net.minecraft.village.TradeOffer;
 import net.minecraft.village.VillagerProfession;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.Locale;
 import java.util.HashSet;
@@ -38,35 +35,31 @@ import java.util.Set;
 public final class TradeCyclerClient implements ClientModInitializer {
     private static final Controller CONTROLLER = new Controller();
     private static TradeCyclerConfig config;
-    private static KeyBinding toggleKey;
-    private static KeyBinding settingsKey;
 
     @Override
     public void onInitializeClient() {
         config = TradeCyclerConfig.load();
 
-        toggleKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.tradecycler.toggle",
-                InputUtil.Type.KEYSYM,
-                GLFW.GLFW_KEY_F8,
-                KeyBinding.Category.MISC
-        ));
-        settingsKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.tradecycler.settings",
-                InputUtil.Type.KEYSYM,
-                GLFW.GLFW_KEY_F9,
-                KeyBinding.Category.MISC
-        ));
+        ClientTickEvents.END_CLIENT_TICK.register(CONTROLLER::tick);
+    }
 
-        ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            while (settingsKey.wasPressed()) {
-                client.setScreen(new TradeCyclerScreen(client.currentScreen, config));
-            }
-            while (toggleKey.wasPressed()) {
-                CONTROLLER.toggle(client);
-            }
-            CONTROLLER.tick(client);
-        });
+    public static void openSettings(MinecraftClient client, Screen parent) {
+        if (config == null) config = TradeCyclerConfig.load();
+        client.setScreen(new TradeCyclerScreen(parent, config));
+    }
+
+    public static void toggle(MinecraftClient client) {
+        if (config == null) config = TradeCyclerConfig.load();
+        CONTROLLER.toggle(client);
+    }
+
+    public static String status() {
+        return CONTROLLER.state == State.IDLE ? "IDLE" : CONTROLLER.state.name().replace('_', ' ');
+    }
+
+    public static TradeCyclerConfig config() {
+        if (config == null) config = TradeCyclerConfig.load();
+        return config;
     }
 
     private enum State {
