@@ -91,6 +91,17 @@ public final class ExoLinkScreen extends Screen {
         toggle(x,y,half,"THREAT MEMORY",()->ExoLinkData.SETTINGS.threatMemory,v->ExoLinkData.SETTINGS.threatMemory=v);
         toggle(x+half+8,y,half,"ECHO 3D",()->ExoLinkData.SETTINGS.echo,v->ExoLinkData.SETTINGS.echo=v);
         y+=34;
+        toggle(x,y,half,"SATELLITE",()->ExoLinkData.SETTINGS.satellite,v->ExoLinkData.SETTINGS.satellite=v);
+        toggle(x+half+8,y,half,"COMPANION",()->ExoLinkData.SETTINGS.companion,v->ExoLinkData.SETTINGS.companion=v);
+        y+=34;
+        if(client!=null&&client.targetedEntity instanceof PlayerEntity p) {
+            button(x,y,half,"SAT TRACK // "+p.getGameProfile().name(),()->{ExoDroneSystem.track(p,client);rebuild();});
+            button(x+half+8,y,half,(ExoDroneSystem.ignored(p)?"UNIGNORE // ":"IGNORE // ")+p.getGameProfile().name(),()->{ExoDroneSystem.toggleIgnore(p);rebuild();});
+        } else {
+            button(x,y,half,"CLEAR SAT TARGET",()->{ExoDroneSystem.clearTarget();rebuild();});
+            disabled(x+half+8,y,half,"LOOK AT PLAYER TO IGNORE");
+        }
+        y+=34;
         if(ExoLinkData.SETTINGS.echo) button(x,y,half,"OPEN ECHO",()->client.setScreen(new Echo3DScreen(this)));
         button(x+half+8,y,half,"CLEAR THREAT MEMORY",ThreatMemoryManager::clear);
     }
@@ -238,6 +249,9 @@ public final class ExoLinkScreen extends Screen {
             }
             case "INTEL"->{
                 line(ctx,x,y,"THREAT MEMORY // "+ThreatMemoryManager.all().size()+" CONTACTS",0xFF7DE1EB); y+=15;
+                ExoDroneSystem.Status drone=ExoDroneSystem.status(client);
+                line(ctx,x,y,"SATELLITE // "+drone.satelliteState()+" // TARGET "+drone.target(),0xFF9DDDE5); y+=15;
+                line(ctx,x,y,"COMPANION // "+(drone.companionAlert()?"ALERT":"STABLE")+" // IGNORED "+drone.ignored(),0xFFA9C3C7); y+=15;
                 line(ctx,x,y,"Only observed equipment/items are stored. Hidden inventory is never guessed.",0xFF829A9E);
             }
             case "COMBAT"->{
