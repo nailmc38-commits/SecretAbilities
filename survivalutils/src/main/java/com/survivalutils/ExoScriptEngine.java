@@ -17,7 +17,7 @@ public final class ExoScriptEngine {
     private record Rule(String source,Condition condition,Action action,String text,WarningManager.Severity severity,int priority) {}
     public record ModuleInfo(String file,String tab,String section,List<String> text,int rules){}
 
-    private static final Pattern QUOTED=Pattern.compile(""([^"]*)"");
+    private static final Pattern QUOTED=Pattern.compile("\\\"([^\\\"]*)\\\"");
     private static final ArrayList<Rule> RULES=new ArrayList<>();
     private static final ArrayList<ModuleInfo> MODULES=new ArrayList<>();
     private static final ArrayList<String> ERRORS=new ArrayList<>();
