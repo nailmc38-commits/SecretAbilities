@@ -166,6 +166,7 @@ public final class ExoLinkScreen extends Screen {
             ExoLinkData.save();
             HudLayoutManager.save();
             ThreatMemoryManager.save();
+            ServerProfileManager.saveCurrent();
         });
     }
 
@@ -236,6 +237,7 @@ public final class ExoLinkScreen extends Screen {
                 line(ctx,x,y,"THREAT CONTACTS // "+ThreatMemoryManager.all().size(),0xFFA7C2C7); y+=15;
                 line(ctx,x,y,"COMBAT RECORDS // "+ExoTelemetry.combats().size()+" // ROUTE POINTS "+ExoTelemetry.route().size(),0xFFA7C2C7); y+=15;
                 line(ctx,x,y,"PORTAL LINKS // "+ExoTelemetry.portals().size()+" // RECOVERY "+(ExoTelemetry.recovery()==null?"NONE":"READY"),0xFFA7C2C7); y+=15;
+                line(ctx,x,y,"PROFILE // "+ServerProfileManager.currentKey(),0xFF9FCAD0); y+=15;
                 line(ctx,x,y,"EXO SCRIPT // "+ExoScriptEngine.ruleCount()+" RULES // "+ExoScriptEngine.errorCount()+" ERRORS",ExoScriptEngine.errorCount()==0?0xFF7FE4A2:0xFFFF8C72); y+=15;
                 var diag=ExoTelemetry.diagnostics(client);
                 line(ctx,x,y,"DIAGNOSTICS // "+diag.entrySet().stream().filter(e->!"ONLINE".equals(e.getValue())).count()+" ATTENTION",0xFF829A9E);
