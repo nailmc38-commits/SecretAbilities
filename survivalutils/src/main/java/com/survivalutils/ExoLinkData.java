@@ -101,6 +101,23 @@ public final class ExoLinkData {
         if (s.warnings != null) SETTINGS.warnings.putAll(s.warnings);
     }
 
+    public static Settings snapshot() {
+        load();
+        return GSON.fromJson(GSON.toJson(SETTINGS),Settings.class);
+    }
+
+    public static void applyProfile(Settings profile) {
+        if(profile==null)return;
+        load();
+        boolean keepProfiles=SETTINGS.perServerProfiles;
+        copy(profile);
+        SETTINGS.perServerProfiles=keepProfiles;
+        for (Map.Entry<String, Boolean> e : Settings.defaultWarnings().entrySet()) {
+            SETTINGS.warnings.putIfAbsent(e.getKey(), e.getValue());
+        }
+        save();
+    }
+
     public static boolean warning(String key) {
         load();
         return SETTINGS.warnings.getOrDefault(key, true);
