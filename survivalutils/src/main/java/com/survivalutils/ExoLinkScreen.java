@@ -152,66 +152,21 @@ public final class ExoLinkScreen extends Screen {
 
     private void buildSystem(int x,int y,int w) {
         int half=(w-8)/2;
-        toggle(x,y,half,"ALL SOUNDS",()->ExoLinkData.SETTINGS.sounds,v->ExoLinkData.SETTINGS.sounds=v);
-        toggle(x+half+8,y,half,"EXO SCRIPT",()->ExoLinkData.SETTINGS.exoScript,v->ExoLinkData.SETTINGS.exoScript=v);
+        button(x,y,half,"WARNING MATRIX",()->client.setScreen(new ExoWarningSettingsScreen(this)));
+        button(x+half+8,y,half,"AUDIO BUS",()->client.setScreen(new ExoAudioSettingsScreen(this)));
         y+=34;
-        button(x,y,half,"RELOAD EXO SCRIPTS",()->{ExoScriptEngine.reload();rebuild();});
-        toggle(x+half+8,y,half,"PER-SERVER PROFILES",()->ExoLinkData.SETTINGS.perServerProfiles,v->ExoLinkData.SETTINGS.perServerProfiles=v);
+        button(x,y,half,"DATA CENTER",()->client.setScreen(new ExoDataCenterScreen(this)));
+        button(x+half+8,y,half,"SYSTEM TEST",()->client.setScreen(new ExoSystemTestScreen(this)));
         y+=34;
-
-        button(x,y,half,"WARNINGS // "+enabledWarnings()+"/"+ExoLinkData.SETTINGS.warnings.size(),()->{
-            warningPage=1;
-            rebuild();
-        });
-        button(x+half+8,y,half,"RETENTION // "+ExoLinkData.SETTINGS.dataRetentionDays+" DAYS",()->{
-            int d=ExoLinkData.SETTINGS.dataRetentionDays;
-            ExoLinkData.SETTINGS.dataRetentionDays=d<7?7:d<30?30:d<90?90:365;
+        toggle(x,y,half,"EXO SCRIPT",()->ExoLinkData.SETTINGS.exoScript,v->ExoLinkData.SETTINGS.exoScript=v);
+        button(x+half+8,y,half,"RELOAD EXO SCRIPTS",()->{ExoScriptEngine.reload();rebuild();});
+        y+=34;
+        toggle(x,y,half,"PER-SERVER PROFILES",()->ExoLinkData.SETTINGS.perServerProfiles,v->ExoLinkData.SETTINGS.perServerProfiles=v);
+        button(x+half+8,y,half,"SAVE ALL",()->{
             ExoLinkData.save();
-            rebuild();
+            HudLayoutManager.save();
+            ThreatMemoryManager.save();
         });
-
-        y+=34;
-        button(x,y,half,"CLEAR THREAT DATA",ThreatMemoryManager::clear);
-        button(x+half+8,y,half,"CLEAR VISOR DATA",VisorDamageSystem::clear);
-
-        y+=34;
-        button(x,y,half,"CLEAR BLACKBOX",ExoTelemetry::clearBlackbox);
-        button(x+half+8,y,half,"CLEAR COMBAT HISTORY",ExoTelemetry::clearCombats);
-
-        y+=34;
-        button(x,y,half,"CLEAR ROUTE MEMORY",ExoTelemetry::clearRoute);
-        button(x+half+8,y,half,"CLEAR PORTAL LINKS",ExoTelemetry::clearPortals);
-
-        y+=34;
-        button(x,y,w,"CLEAR RECOVERY TARGET",ExoTelemetry::clearRecovery);
-
-        if(warningPage>0) buildWarningPager(x,y+42,w);
-    }
-
-    private void buildWarningPager(int x,int y,int w) {
-        ArrayList<String> keys=new ArrayList<>(ExoLinkData.SETTINGS.warnings.keySet());
-        int per=8;
-        int pages=Math.max(1,(keys.size()+per-1)/per);
-        warningPage=Math.max(1,Math.min(warningPage,pages));
-        int start=(warningPage-1)*per;
-        int end=Math.min(keys.size(),start+per);
-        int half=(w-8)/2;
-
-        for(int i=start;i<end;i++) {
-            String key=keys.get(i);
-            int local=i-start;
-            int col=local%2,row=local/2;
-            int bx=x+col*(half+8);
-            int by=y+row*30;
-            button(bx,by,half,pretty(key)+" // "+onOff(ExoLinkData.warning(key)),()->{
-                ExoLinkData.toggleWarning(key);
-                rebuild();
-            });
-        }
-
-        int navY=y+4*30+6;
-        button(x,navY,half,"< WARN PAGE",()->{warningPage=Math.max(1,warningPage-1);rebuild();});
-        button(x+half+8,navY,half,"WARN PAGE "+warningPage+"/"+pages+" >",()->{warningPage=Math.min(pages,warningPage+1);rebuild();});
     }
 
     @Override
