@@ -212,12 +212,6 @@ public final class SurvMegaState {
             lastDimension = dim;
         }
 
-        if (SETTINGS.mobControl && ticks % 20 == 0) {
-            MOB_UNITS.removeIf(id -> {
-                Entity e = c.world.getEntity(id.hashCode());
-                return false;
-            });
-        }
 
         if (System.currentTimeMillis() - lastSaveAt > 20_000L) save();
     }
@@ -480,7 +474,12 @@ public final class SurvMegaState {
 
     public static int armorIntegrity(PlayerEntity p) {
         int sum=0,count=0;
-        for (ItemStack s : p.getArmorItems()) {
+        for (net.minecraft.entity.EquipmentSlot slot : new net.minecraft.entity.EquipmentSlot[]{
+                net.minecraft.entity.EquipmentSlot.HEAD,
+                net.minecraft.entity.EquipmentSlot.CHEST,
+                net.minecraft.entity.EquipmentSlot.LEGS,
+                net.minecraft.entity.EquipmentSlot.FEET}) {
+            ItemStack s = p.getEquippedStack(slot);
             if (s == null || s.isEmpty()) continue;
             count++;
             sum += InventoryUtil.durabilityPercent(s);
@@ -490,7 +489,12 @@ public final class SurvMegaState {
 
     public static String armorName(PlayerEntity p) {
         String best="UNARMORED";
-        for (ItemStack s : p.getArmorItems()) {
+        for (net.minecraft.entity.EquipmentSlot slot : new net.minecraft.entity.EquipmentSlot[]{
+                net.minecraft.entity.EquipmentSlot.HEAD,
+                net.minecraft.entity.EquipmentSlot.CHEST,
+                net.minecraft.entity.EquipmentSlot.LEGS,
+                net.minecraft.entity.EquipmentSlot.FEET}) {
+            ItemStack s = p.getEquippedStack(slot);
             if (s==null||s.isEmpty()) continue;
             String id=InventoryUtil.id(s);
             if(id.contains("netherite")) return "NETHERITE";
