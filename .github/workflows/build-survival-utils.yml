@@ -1,8 +1,8 @@
-name: Build SURV OS Mega
+name: Build SURV OS Clean
 
 on:
   push:
-    branches: [ surv-os-mega ]
+    branches: [ surv-os-clean ]
   workflow_dispatch:
 
 jobs:
@@ -18,17 +18,27 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.2.1'
-      - name: Bundle SeedCrackerX
+      - name: Bundle runtime engines
         run: |
           mkdir -p survivalutils/src/main/resources/META-INF/jars
           curl -L --fail --retry 3 \
             https://github.com/19MisterX98/SeedcrackerX/releases/download/2.15.6/seedcrackerX-2.15.6.jar \
             -o survivalutils/src/main/resources/META-INF/jars/seedcrackerX-2.15.6.jar
+          curl -L --fail --retry 3 \
+            https://github.com/Earthcomputer/clientcommands/releases/download/v2.13.2/clientcommands-2.13.2.jar \
+            -o survivalutils/src/main/resources/META-INF/jars/clientcommands-2.13.2.jar
       - name: Build
         run: gradle clean build --stacktrace
+      - name: Verify nested engines
+        run: |
+          JAR=$(find build/libs -maxdepth 1 -name '*.jar' ! -name '*-sources.jar' | head -n 1)
+          jar tf "$JAR" | grep 'META-INF/jars/seedcrackerX-2.15.6.jar'
+          jar tf "$JAR" | grep 'META-INF/jars/clientcommands-2.13.2.jar'
       - name: Upload JAR
         uses: actions/upload-artifact@v4
         with:
-          name: SURV-OS-Mega-1.21.11
-          path: build/libs/*.jar
+          name: SURV-OS-Clean-1.21.11
+          path: |
+            build/libs/*.jar
+            !build/libs/*-sources.jar
           if-no-files-found: error
