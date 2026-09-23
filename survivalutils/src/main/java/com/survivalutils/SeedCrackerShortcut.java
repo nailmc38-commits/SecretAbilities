@@ -23,6 +23,8 @@ public final class SeedCrackerShortcut {
         });
     }
 
+    public static void runNow() { run(); }
+
     private static int run() {
         MinecraftClient client = MinecraftClient.getInstance();
 
