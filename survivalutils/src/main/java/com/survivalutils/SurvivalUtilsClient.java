@@ -71,9 +71,9 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
         PackManager.tick(client);
         VisorDamageSystem.tick(client);
         ExoTelemetry.tick(client);
+        ExoScriptEngine.tick(client);
         WARNINGS.tick(client);
         ExoAudioManager.tick(client);
-        ExoScriptEngine.tick(client);
     }
 
     private static void renderHud(DrawContext ctx, RenderTickCounter counter) {
