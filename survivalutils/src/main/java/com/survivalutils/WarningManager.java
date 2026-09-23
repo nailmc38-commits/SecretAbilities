@@ -205,6 +205,11 @@ public final class WarningManager {
             }
         }
 
+        ExoScriptEngine.ScriptAlert script=ExoScriptEngine.active();
+        if(script!=null&&script.action()==ExoScriptEngine.Action.WARN){
+            found.add(new Candidate("exo_script",script.text(),script.severity(),script.priority()));
+        }
+
         Candidate best=found.stream().max(Comparator.comparingInt(Candidate::priority)).orElse(null);
         if(best==null){active=null;return;}
 
