@@ -70,6 +70,7 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
         CombatAdvisor.tick(client);
         PackManager.tick(client);
         VisorDamageSystem.tick(client);
+        ExoTelemetry.tick(client);
         WARNINGS.tick(client);
     }
 
