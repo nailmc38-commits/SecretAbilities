@@ -186,6 +186,9 @@ public final class SurvMegaHubScreen extends Screen {
     private void trap(int x,int y,int w) {
         toggle(x,y,w,"TRAP ASSIST",()->SurvMegaState.SETTINGS.trap,v->SurvMegaState.SETTINGS.trap=v);
         y+=34;
+        toggle(x,y,w/2-4,"WEB FIRST",()->SurvMegaState.SETTINGS.trapWeb,v->SurvMegaState.SETTINGS.trapWeb=v);
+        toggle(x+w/2+4,y,w/2-4,"BOX",()->SurvMegaState.SETTINGS.trapBox,v->SurvMegaState.SETTINGS.trapBox=v);
+        y+=34;
         button(x,y,w/2-4,"RANGE  "+SurvMegaState.SETTINGS.trapRange,()->{
             SurvMegaState.SETTINGS.trapRange++;
             if(SurvMegaState.SETTINGS.trapRange>8)SurvMegaState.SETTINGS.trapRange=2;
