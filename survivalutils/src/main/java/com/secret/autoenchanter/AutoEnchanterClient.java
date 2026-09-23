@@ -2,24 +2,21 @@ package com.secret.autoenchanter;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.util.InputUtil;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.EnchantingTableBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
+import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 
 public final class AutoEnchanterClient implements ClientModInitializer {
-    private static KeyBinding openKey;
     private static PendingRun pendingRun;
 
     public record EnchantChoice(String id, String label, int maxLevel) {}
@@ -69,29 +66,17 @@ public final class AutoEnchanterClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        openKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.autoenchanter.open",
-                InputUtil.Type.KEYSYM,
-                GLFW.GLFW_KEY_F10,
-                KeyBinding.Category.MISC
-        ));
-
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             try {
-                while (openKey.wasPressed()) {
-                    openBuilder(client);
-                }
-                if (pendingRun != null) {
-                    tickPending(client);
-                }
-            } catch (Throwable ignored) {
-                // Never let an AutoEnchanter tick exception take down the whole client.
+                if (pendingRun != null) tickPending(client);
+            } catch (Throwable t) {
+                message(client, "Automation stopped because of an internal error: " + t.getClass().getSimpleName());
                 pendingRun = null;
             }
         });
     }
 
-    private static void openBuilder(MinecraftClient client) {
+    public static void openBuilder(MinecraftClient client) {
         if (client.player == null || client.world == null) {
             message(client, "Join a world first.");
             return;
@@ -168,9 +153,21 @@ public final class AutoEnchanterClient implements ClientModInitializer {
     }
 
     private static void runClientCommand(MinecraftClient client, String command) {
-        if (client.getNetworkHandler() != null) {
-            client.getNetworkHandler().sendChatCommand(command);
+        try {
+            var dispatcher = ClientCommandManager.getActiveDispatcher();
+            if (dispatcher == null || client.getNetworkHandler() == null) {
+                message(client, "ClientCommands is not ready yet.");
+                return;
+            }
+            FabricClientCommandSource source = (FabricClientCommandSource)(Object) client.getNetworkHandler().getCommandSource();
+            dispatcher.execute(command, source);
+        } catch (Exception e) {
+            message(client, "Client command failed: /" + command + " (" + e.getClass().getSimpleName() + ")");
         }
+    }
+
+    public static String status() {
+        return pendingRun == null ? "READY" : "RUNNING";
     }
 
     private static BlockPos findNearestEnchantingTable(MinecraftClient client, int radius) {
