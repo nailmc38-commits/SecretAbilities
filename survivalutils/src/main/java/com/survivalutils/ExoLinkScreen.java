@@ -61,7 +61,7 @@ public final class ExoLinkScreen extends Screen {
 
     private void buildStatus(int x,int y,int w) {
         int half=(w-8)/2;
-        toggle(x,y,half,"EXO HUD",()->ExoLinkData.SETTINGS.exoHud,v->ExoLinkData.SETTINGS.exoHud=v);
+        toggle(x,y,half,"EXO HUD MASTER",()->ExoLinkData.SETTINGS.exoHud,v->ExoLinkData.SETTINGS.exoHud=v);
         toggle(x+half+8,y,half,"EMERGENCY MODE",()->ExoLinkData.SETTINGS.emergencyMode,v->ExoLinkData.SETTINGS.emergencyMode=v);
         y+=34;
         toggle(x,y,half,"ADVISOR",()->ExoLinkData.SETTINGS.advisor,v->ExoLinkData.SETTINGS.advisor=v);
