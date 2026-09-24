@@ -38,7 +38,7 @@ jobs:
       - name: Upload JAR
         uses: actions/upload-artifact@v4
         with:
-          name: EXO-LINK-1.21.11
+          name: EXO-LINK-4.1.0-1.21.11
           path: |
             build/libs/*.jar
             !build/libs/*-sources.jar
