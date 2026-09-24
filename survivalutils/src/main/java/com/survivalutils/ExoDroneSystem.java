@@ -100,34 +100,63 @@ public final class ExoDroneSystem {
                 || warning.severity()==WarningManager.Severity.CRITICAL);
 
         double t=System.currentTimeMillis()/240.0;
+        Vec3d side=new Vec3d(Math.cos(t),0,Math.sin(t));
+        Vec3d forward=new Vec3d(-Math.sin(t),0,Math.cos(t));
+
+        // Compact three-prong companion body.
         particle(client,ParticleTypes.GLOW,companionPos);
-        particle(client,ParticleTypes.END_ROD,companionPos.add(Math.cos(t)*0.28,0,Math.sin(t)*0.28));
-        particle(client,ParticleTypes.END_ROD,companionPos.add(-Math.cos(t)*0.28,0,-Math.sin(t)*0.28));
-        particle(client,ParticleTypes.GLOW,companionPos.add(0,0.25,0));
+        particle(client,ParticleTypes.GLOW,companionPos.add(0,0.22,0));
+        particle(client,ParticleTypes.END_ROD,companionPos.add(side.multiply(0.18)));
+        particle(client,ParticleTypes.END_ROD,companionPos.add(side.multiply(-0.18)));
+        particle(client,ParticleTypes.END_ROD,companionPos.add(forward.multiply(0.22)));
+        particle(client,ParticleTypes.END_ROD,companionPos.add(forward.multiply(-0.13)).add(0,-0.08,0));
+
+        // Slow sensor ring makes it visually distinct from the satellite.
+        particle(client,ParticleTypes.END_ROD,companionPos.add(Math.cos(t)*0.32,0.10,Math.sin(t)*0.32));
+        particle(client,ParticleTypes.END_ROD,companionPos.add(Math.cos(t+2.094)*0.32,0.10,Math.sin(t+2.094)*0.32));
+        particle(client,ParticleTypes.END_ROD,companionPos.add(Math.cos(t+4.188)*0.32,0.10,Math.sin(t+4.188)*0.32));
+
         if(alert){
-            particle(client,ParticleTypes.CRIT,companionPos.add(0,0.05,0));
-            particle(client,ParticleTypes.CRIT,companionPos.add(0.20,0.12,0));
-            particle(client,ParticleTypes.CRIT,companionPos.add(-0.20,0.12,0));
+            particle(client,ParticleTypes.CRIT,companionPos.add(0,0.08,0));
+            particle(client,ParticleTypes.CRIT,companionPos.add(side.multiply(0.24)).add(0,0.10,0));
+            particle(client,ParticleTypes.CRIT,companionPos.add(side.multiply(-0.24)).add(0,0.10,0));
         }
 
         EscapeVector.Result e=CombatAdvisor.current().escape();
         if(alert&&e!=null&&!"NONE".equals(e.direction())){
             Vec3d dir=directionVector(e.direction());
-            particle(client,ParticleTypes.END_ROD,companionPos.add(dir.multiply(0.55)));
-            particle(client,ParticleTypes.END_ROD,companionPos.add(dir.multiply(0.85)));
+            for(double d=0.45;d<=1.20;d+=0.25){
+                particle(client,ParticleTypes.END_ROD,companionPos.add(dir.multiply(d)).add(0,0.03,0));
+            }
         }
     }
 
     private static void renderSatellite(MinecraftClient client,PlayerEntity target){
         double t=System.currentTimeMillis()/190.0;
+        Vec3d wing=new Vec3d(Math.cos(t),0,Math.sin(t));
+        Vec3d nose=new Vec3d(-Math.sin(t),0,Math.cos(t));
+
+        // Larger cross-body satellite so it reads as one physical device.
         particle(client,ParticleTypes.GLOW,satellitePos);
-        particle(client,ParticleTypes.END_ROD,satellitePos.add(Math.cos(t)*0.34,0,Math.sin(t)*0.34));
-        particle(client,ParticleTypes.END_ROD,satellitePos.add(-Math.cos(t)*0.34,0,-Math.sin(t)*0.34));
-        particle(client,ParticleTypes.END_ROD,satellitePos.add(0,0.27,0));
-        particle(client,ParticleTypes.PORTAL,satellitePos.add(0,-0.22,0));
+        particle(client,ParticleTypes.GLOW,satellitePos.add(0,0.24,0));
+        for(double d=0.16;d<=0.48;d+=0.16){
+            particle(client,ParticleTypes.END_ROD,satellitePos.add(wing.multiply(d)));
+            particle(client,ParticleTypes.END_ROD,satellitePos.add(wing.multiply(-d)));
+        }
+        particle(client,ParticleTypes.END_ROD,satellitePos.add(nose.multiply(0.38)).add(0,0.05,0));
+        particle(client,ParticleTypes.END_ROD,satellitePos.add(nose.multiply(-0.26)).add(0,-0.03,0));
+        particle(client,ParticleTypes.PORTAL,satellitePos.add(0,-0.18,0));
+        particle(client,ParticleTypes.PORTAL,satellitePos.add(0,-0.30,0));
+
+        // Rotating sensor halo.
+        for(int i=0;i<4;i++){
+            double a=t+i*(Math.PI/2.0);
+            particle(client,ParticleTypes.END_ROD,satellitePos.add(Math.cos(a)*0.40,0.16,Math.sin(a)*0.40));
+        }
 
         if(state==SatelliteState.DEPLOYING||state==SatelliteState.RETURNING){
-            particle(client,ParticleTypes.PORTAL,satellitePos.add(0,-0.05,0));
+            particle(client,ParticleTypes.PORTAL,satellitePos.add(nose.multiply(-0.45)));
+            particle(client,ParticleTypes.PORTAL,satellitePos.add(nose.multiply(-0.70)));
         }
 
         if(target!=null&&state==SatelliteState.TRACKING){
@@ -135,11 +164,9 @@ public final class ExoDroneSystem {
             Vec3d delta=targetEye.subtract(satellitePos);
             double len=delta.length();
             if(len>0.1){
-                Vec3d step=delta.normalize().multiply(0.55);
-                Vec3d p=satellitePos;
-                for(double d=0.6;d<Math.min(len,7.0);d+=0.9){
-                    p=p.add(step.multiply(0.9/0.55));
-                    particle(client,ParticleTypes.END_ROD,p);
+                Vec3d normal=delta.normalize();
+                for(double d=0.55;d<Math.min(len,8.0);d+=0.70){
+                    particle(client,ParticleTypes.END_ROD,satellitePos.add(normal.multiply(d)));
                 }
             }
         }
