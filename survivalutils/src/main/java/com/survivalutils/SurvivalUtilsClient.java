@@ -82,15 +82,9 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null || client.world == null || client.textRenderer == null) return;
 
-        if (ExoLinkData.SETTINGS.exoHud) {
-            ExoHudRenderer.render(ctx, client, WARNINGS.active());
-            return;
-        }
-
-        if (CONFIG.isEnabled(Feature.MAIN_HUD)) renderMainHud(ctx, client);
-        if (CONFIG.isEnabled(Feature.STATS_PANEL)) renderStatsHud(ctx, client);
-        if (CONFIG.isEnabled(Feature.HELMET_OVERLAY)) renderHelmetHud(ctx, client);
-        renderWarningBanner(ctx, client);
+        // True master visual switch: when EXO HUD is OFF, EXO renders nothing at all.
+        if (!ExoLinkData.SETTINGS.exoHud) return;
+        ExoHudRenderer.render(ctx, client, WARNINGS.active());
     }
 
     private static void renderMainHud(DrawContext ctx, MinecraftClient client) {
