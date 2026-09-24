@@ -127,6 +127,27 @@ public final class ThreatMemoryManager {
     }
 
     public static void setTag(String uuid,String tag){ Contact c=get(uuid); if(c!=null){c.tag=tag;save();} }
+
+    public static void cycleTag(String uuid){
+        Contact c=get(uuid);
+        if(c==null)return;
+        c.tag=switch(c.tag){case "NEUTRAL"->"FRIEND";case "FRIEND"->"WATCH";case "WATCH"->"HOSTILE";default->"NEUTRAL";};
+        save();
+    }
+
+    public static void toggleStar(String uuid){
+        Contact c=get(uuid);
+        if(c==null)return;
+        c.starred=!c.starred;
+        save();
+    }
+
+    public static void remove(String uuid){
+        ensureLoaded();
+        CONTACTS.remove(uuid);
+        save();
+    }
+
     public static void clear(){ensureLoaded();CONTACTS.clear();save();}
 
     private static void prune() {
