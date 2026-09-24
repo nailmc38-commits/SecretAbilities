@@ -102,8 +102,8 @@ public final class ExoLinkScreen extends Screen {
             disabled(x+half+8,y,half,"LOOK AT PLAYER TO IGNORE");
         }
         y+=34;
-        if(ExoLinkData.SETTINGS.echo) button(x,y,half,"OPEN ECHO",()->client.setScreen(new Echo3DScreen(this)));
-        button(x+half+8,y,half,"CLEAR THREAT MEMORY",ThreatMemoryManager::clear);
+        button(x,y,half,"THREAT MEMORY // "+ThreatMemoryManager.all().size(),()->client.setScreen(new ExoThreatMemoryScreen(this)));
+        if(ExoLinkData.SETTINGS.echo) button(x+half+8,y,half,"OPEN ECHO",()->client.setScreen(new Echo3DScreen(this)));
     }
 
     private void buildCombat(int x,int y,int w) {
