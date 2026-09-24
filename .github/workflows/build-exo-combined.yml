@@ -51,6 +51,9 @@ jobs:
           curl -L --fail --retry 3 \
             'https://maven.fabricmc.net/net/fabricmc/fabric-language-kotlin/1.13.8%2Bkotlin.2.3.0/fabric-language-kotlin-1.13.8%2Bkotlin.2.3.0.jar' \
             -o combined/META-INF/jars/fabric-language-kotlin-1.13.8+kotlin.2.3.0.jar
+          curl -L --fail --retry 3 \
+            'https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-api/0.139.5%2B1.21.11/fabric-api-0.139.5%2B1.21.11.jar' \
+            -o combined/META-INF/jars/fabric-api-0.139.5+1.21.11.jar
 
       - name: Verify third-party integrity
         run: |
@@ -60,7 +63,7 @@ jobs:
 
       - name: Assemble all-in-one Fabric JAR
         run: |
-          EXO_JAR=$(find build/libs -maxdepth 1 -name 'EXO-LINK-4.2.0.jar' -o -name 'EXO-LINK-*.jar' | grep -v sources | head -n 1)
+          EXO_JAR=$(find build/libs -maxdepth 1 -name 'EXO-LINK-4.2.1.jar' -o -name 'EXO-LINK-*.jar' | grep -v sources | head -n 1)
           test -f "$EXO_JAR"
           mkdir -p combined/root
           cd combined/root
@@ -83,6 +86,7 @@ jobs:
               "META-INF/jars/meteor-client-1.21.11-86.jar",
               "META-INF/jars/lambda-0.1.0+1.21.11.jar",
               "META-INF/jars/fabric-language-kotlin-1.13.8+kotlin.2.3.0.jar",
+              "META-INF/jars/fabric-api-0.139.5+1.21.11.jar",
           ]
 
           existing = {x.get("file") for x in jars if isinstance(x, dict)}
@@ -102,18 +106,20 @@ jobs:
               "Meteor Client 1.21.11-86 — GPL-3.0 — https://github.com/MeteorDevelopment/meteor-client\n"
               "Lambda 0.1.0+1.21.11 — GPL-3.0 — https://github.com/lambda-client/lambda\n"
               "Fabric Language Kotlin — Apache-2.0 — https://github.com/FabricMC/fabric-language-kotlin\n"
+              "Fabric API 0.139.5+1.21.11 — Apache-2.0 — https://github.com/FabricMC/fabric\n"
               "The nested third-party JARs are distributed unmodified.\n"
           )
           PY
 
-          jar --create --file ../../EXO-LINK-4.2.0-Meteor-Lambda-1.21.11.jar -C . .
+          jar --create --file ../../EXO-LINK-4.2.1-Meteor-Lambda-1.21.11.jar -C . .
 
       - name: Verify combined JAR
         run: |
-          JAR=EXO-LINK-4.2.0-Meteor-Lambda-1.21.11.jar
+          JAR=EXO-LINK-4.2.1-Meteor-Lambda-1.21.11.jar
           jar tf "$JAR" | grep 'META-INF/jars/meteor-client-1.21.11-86.jar'
           jar tf "$JAR" | grep 'META-INF/jars/lambda-0.1.0+1.21.11.jar'
           jar tf "$JAR" | grep 'META-INF/jars/fabric-language-kotlin-1.13.8+kotlin.2.3.0.jar'
+          jar tf "$JAR" | grep 'META-INF/jars/fabric-api-0.139.5+1.21.11.jar'
           jar tf "$JAR" | grep 'META-INF/jars/clientcommands-2.13.2.jar'
           jar tf "$JAR" | grep 'META-INF/jars/seedcrackerX-2.15.6.jar'
           unzip -t "$JAR"
@@ -122,6 +128,6 @@ jobs:
       - name: Upload combined client
         uses: actions/upload-artifact@v4
         with:
-          name: EXO-LINK-4.2.0-Meteor-Lambda-1.21.11
-          path: EXO-LINK-4.2.0-Meteor-Lambda-1.21.11.jar
+          name: EXO-LINK-4.2.1-Meteor-Lambda-1.21.11
+          path: EXO-LINK-4.2.1-Meteor-Lambda-1.21.11.jar
           if-no-files-found: error
