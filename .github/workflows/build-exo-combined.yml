@@ -1,0 +1,127 @@
+name: Build EXO LINK Combined Client
+
+on:
+  push:
+    branches: [ exo-link ]
+    paths:
+      - '.github/workflows/build-exo-combined.yml'
+      - 'survivalutils/**'
+      - 'gradle.properties'
+      - 'build.gradle'
+  workflow_dispatch:
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.2.1'
+
+      - name: Bundle EXO runtime engines
+        run: |
+          mkdir -p survivalutils/src/main/resources/META-INF/jars
+          curl -L --fail --retry 3 \
+            https://github.com/19MisterX98/SeedcrackerX/releases/download/2.15.6/seedcrackerX-2.15.6.jar \
+            -o survivalutils/src/main/resources/META-INF/jars/seedcrackerX-2.15.6.jar
+          curl -L --fail --retry 3 \
+            https://github.com/Earthcomputer/clientcommands/releases/download/v2.13.2/clientcommands-2.13.2.jar \
+            -o survivalutils/src/main/resources/META-INF/jars/clientcommands-2.13.2.jar
+
+      - name: Build EXO LINK
+        run: gradle clean build --stacktrace
+
+      - name: Download official Meteor and Lambda
+        run: |
+          mkdir -p combined/META-INF/jars
+          curl -L --fail --retry 3 \
+            'https://meteorclient.com/api/download?version=1.21.11' \
+            -o combined/META-INF/jars/meteor-client-1.21.11-86.jar
+          curl -L --fail --retry 3 \
+            'https://github.com/lambda-client/lambda/releases/download/0.1.0%2B1.21.11/lambda-0.1.0%2B1.21.11.jar' \
+            -o combined/META-INF/jars/lambda-0.1.0+1.21.11.jar
+          curl -L --fail --retry 3 \
+            'https://maven.fabricmc.net/net/fabricmc/fabric-language-kotlin/1.13.8%2Bkotlin.2.3.0/fabric-language-kotlin-1.13.8%2Bkotlin.2.3.0.jar' \
+            -o combined/META-INF/jars/fabric-language-kotlin-1.13.8+kotlin.2.3.0.jar
+
+      - name: Verify third-party integrity
+        run: |
+          echo '93390cfdb1030e47f116357ba421c90a9b1ca4832b6551c2dec1ade5eeb42e71  combined/META-INF/jars/meteor-client-1.21.11-86.jar' | sha256sum -c -
+          echo '57f61ebecbb34a88f9bed18f4436cb11a96c99aa36c18e5add04b4399cb7328a  combined/META-INF/jars/lambda-0.1.0+1.21.11.jar' | sha256sum -c -
+          jar tf combined/META-INF/jars/fabric-language-kotlin-1.13.8+kotlin.2.3.0.jar | grep 'fabric.mod.json'
+
+      - name: Assemble all-in-one Fabric JAR
+        run: |
+          EXO_JAR=$(find build/libs -maxdepth 1 -name 'EXO-LINK-4.2.0.jar' -o -name 'EXO-LINK-*.jar' | grep -v sources | head -n 1)
+          test -f "$EXO_JAR"
+          mkdir -p combined/root
+          cd combined/root
+          jar xf "../../$EXO_JAR"
+          mkdir -p META-INF/jars THIRD_PARTY_LICENSES
+          cp ../META-INF/jars/*.jar META-INF/jars/
+
+          jar xf META-INF/jars/meteor-client-1.21.11-86.jar LICENSE_meteor-client
+          mv LICENSE_meteor-client THIRD_PARTY_LICENSES/METEOR-GPL-3.0.txt
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          p = Path("fabric.mod.json")
+          data = json.loads(p.read_text())
+          jars = data.setdefault("jars", [])
+
+          wanted = [
+              "META-INF/jars/meteor-client-1.21.11-86.jar",
+              "META-INF/jars/lambda-0.1.0+1.21.11.jar",
+              "META-INF/jars/fabric-language-kotlin-1.13.8+kotlin.2.3.0.jar",
+          ]
+
+          existing = {x.get("file") for x in jars if isinstance(x, dict)}
+          for f in wanted:
+              if f not in existing:
+                  jars.append({"file": f})
+
+          data["description"] = (
+              "EXO // LINK combined bundle for Minecraft 1.21.11. "
+              "Includes EXO LINK plus unmodified nested Meteor Client 1.21.11-86 "
+              "and Lambda 0.1.0+1.21.11. Third-party components retain their own licenses."
+          )
+          p.write_text(json.dumps(data, indent=2) + "\n")
+
+          Path("THIRD_PARTY_LICENSES/NOTICE.txt").write_text(
+              "This bundle aggregates separate Fabric mods.\n"
+              "Meteor Client 1.21.11-86 — GPL-3.0 — https://github.com/MeteorDevelopment/meteor-client\n"
+              "Lambda 0.1.0+1.21.11 — GPL-3.0 — https://github.com/lambda-client/lambda\n"
+              "Fabric Language Kotlin — Apache-2.0 — https://github.com/FabricMC/fabric-language-kotlin\n"
+              "The nested third-party JARs are distributed unmodified.\n"
+          )
+          PY
+
+          jar --create --file ../../EXO-LINK-4.2.0-Meteor-Lambda-1.21.11.jar -C . .
+
+      - name: Verify combined JAR
+        run: |
+          JAR=EXO-LINK-4.2.0-Meteor-Lambda-1.21.11.jar
+          jar tf "$JAR" | grep 'META-INF/jars/meteor-client-1.21.11-86.jar'
+          jar tf "$JAR" | grep 'META-INF/jars/lambda-0.1.0+1.21.11.jar'
+          jar tf "$JAR" | grep 'META-INF/jars/fabric-language-kotlin-1.13.8+kotlin.2.3.0.jar'
+          jar tf "$JAR" | grep 'META-INF/jars/clientcommands-2.13.2.jar'
+          jar tf "$JAR" | grep 'META-INF/jars/seedcrackerX-2.15.6.jar'
+          unzip -t "$JAR"
+          sha256sum "$JAR"
+
+      - name: Upload combined client
+        uses: actions/upload-artifact@v4
+        with:
+          name: EXO-LINK-4.2.0-Meteor-Lambda-1.21.11
+          path: EXO-LINK-4.2.0-Meteor-Lambda-1.21.11.jar
+          if-no-files-found: error
