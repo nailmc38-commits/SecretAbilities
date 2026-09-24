@@ -72,6 +72,8 @@ public final class CombatAdvisor {
 
         double your=power(self,true);
         double their=power(enemy,false);
+        double baseYour=your;
+        double baseTheir=their;
 
         int friends=0;
         List<String> friendNames=new ArrayList<>();
@@ -123,13 +125,26 @@ public final class CombatAdvisor {
 
         if(memory!=null) {
             lines.add("Memory tag // "+memory.tag+" // encounters "+memory.encounters);
-            if(!memory.observedItems.isEmpty()) lines.add("Observed inventory // "+Math.min(40,memory.observedItems.size())+" item types");
+            if(!memory.observedItems.isEmpty()) {
+                lines.add("Observed inventory // "+Math.min(40,memory.observedItems.size())+" item types");
+                String recent=memory.observedItems.entrySet().stream()
+                        .sorted(java.util.Map.Entry.<String,Long>comparingByValue().reversed())
+                        .limit(4)
+                        .map(e->e.getKey().replace('_',' '))
+                        .reduce((a,b)->a+", "+b).orElse("");
+                if(!recent.isBlank()) lines.add("Recently observed // "+recent);
+            }
         }
 
-        if(friends>0) lines.add("Ally support // "+friends+" // "+String.join(", ",friendNames));
-        if(extraThreats>0) lines.add("Other nearby unknown/hostile players // "+extraThreats);
+        double gearDelta=baseYour-baseTheir;
+        lines.add("Gear/health edge // "+(gearDelta>6?"YOU":gearDelta<-6?"THEM":"EVEN"));
+        if(friends>0) lines.add("Ally support // +"+friends+" // "+String.join(", ",friendNames));
+        if(extraThreats>0) lines.add("Enemy pressure // +"+extraThreats+" nearby unknown/hostile");
+        if(escape.clearBlocks()>=8) lines.add("Escape path // STRONG // "+escape.direction());
+        else if(escape.clearBlocks()<=3) lines.add("Escape path // POOR // "+escape.direction());
         lines.add("Estimate // "+estimate+"% // "+confidence+" confidence");
-        lines.add("Escape // "+escape.direction()+" // "+escape.clearBlocks()+" clear blocks");
+        lines.add("Estimate factors // visible HP, armor, weapon, effects, observed history, nearby allies/threats");
+        lines.add("Escape // "+escape.direction()+" // "+escape.clearBlocks()+" clear blocks // "+escape.reason());
 
         return new Snapshot(rec,enemy.getGameProfile().name(),"PLAYER",estimate,confidence,lines,escape);
     }
