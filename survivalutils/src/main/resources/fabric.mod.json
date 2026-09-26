@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "id": "exolink",
+  "id": "survutils",
   "version": "${version}",
-  "name": "EXO // LINK",
-  "description": "Power Armor survival system with adaptive HUD, prioritized warnings, Advisor, Escape Vector, observed Threat Memory, visor damage, EXO PACK, ECHO and integrated survival tools.",
+  "name": "SURV // UTILS V5",
+  "description": "Client-side survival automation and power-armor HUD suite with Repeat, Player Notifier, 20+ automation modules, Advisor, Escape Vector, Threat Memory, ECHO, Pack control, AutoEnchanter, TradeCycler and SeedCracker.",
   "authors": [
     "Neil"
   ],
