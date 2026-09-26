@@ -32,7 +32,7 @@ public final class FastAutoTotemClient implements ClientModInitializer {
                 "key.fastautototem.toggle",
                 InputUtil.Type.KEYSYM,
                 GLFW.GLFW_KEY_F8,
-                "category.fastautototem"
+                KeyBinding.Category.MISC
         ));
 
         ClientTickEvents.END_CLIENT_TICK.register(FastAutoTotemClient::tick);
