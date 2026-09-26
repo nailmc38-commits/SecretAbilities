@@ -37,6 +37,9 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
     public void onInitializeClient() {
         CONFIG.load();
         ExoLinkData.load();
+        SurvAutomationManager.load();
+        ChatRepeatManager.init();
+        PlayerNotifierManager.init();
         SeedCrackerShortcut.register();
 
         menuKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
@@ -76,6 +79,7 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
         ExoScriptEngine.tick(client);
         WARNINGS.tick(client);
         ExoAudioManager.tick(client);
+        SurvAutomationManager.tick(client);
     }
 
     private static void renderHud(DrawContext ctx, RenderTickCounter counter) {
