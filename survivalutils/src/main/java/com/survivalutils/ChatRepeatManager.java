@@ -43,7 +43,7 @@ public final class ChatRepeatManager {
         load();
         ClientReceiveMessageEvents.CHAT.register((message,signedMessage,sender,params,receptionTimestamp)->{
             if(sender==null)return;
-            onChat(sender.getName(),message.getString());
+            onChat(sender.name(),message.getString());
         });
         registerCommands();
     }
