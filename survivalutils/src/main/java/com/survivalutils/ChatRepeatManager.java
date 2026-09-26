@@ -163,9 +163,11 @@ public final class ChatRepeatManager {
         }
         if(best==null)return null;
         String out=raw.substring(Math.min(raw.length(),bestAt+best.length())).trim();
-        while(!out.isEmpty()&&":,-–—>"'".indexOf(out.charAt(0))>=0)out=out.substring(1).trim();
+        while(!out.isEmpty() && (out.charAt(0)==':' || out.charAt(0)==',' || out.charAt(0)=='-' || out.charAt(0)=='–' || out.charAt(0)=='—' || out.charAt(0)=='>' || out.charAt(0)=='"' || out.charAt(0)=='\'')) {
+            out=out.substring(1).trim();
+        }
         if(out.startsWith("me "))out=out.substring(3).trim();
-        if(out.length()>=2&&out.startsWith(""")&&out.endsWith("""))out=out.substring(1,out.length()-1);
+        if(out.length()>=2&&out.startsWith("\"")&&out.endsWith("\""))out=out.substring(1,out.length()-1);
         return out;
     }
 
