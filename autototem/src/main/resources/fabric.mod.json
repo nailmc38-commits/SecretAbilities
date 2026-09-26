@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "fastautototem",
+  "version": "${version}",
+  "name": "Fast Auto Totem",
+  "description": "Fast client-side toggleable auto-totem refill for Fabric 1.21.11.",
+  "authors": ["Neil"],
+  "license": "All Rights Reserved",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["com.fastautototem.FastAutoTotemClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.4",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
