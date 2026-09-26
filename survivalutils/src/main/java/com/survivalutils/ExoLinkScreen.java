@@ -21,7 +21,7 @@ public final class ExoLinkScreen extends Screen {
     private int warningPage;
 
     public ExoLinkScreen() {
-        super(Text.literal("EXO // LINK"));
+        super(Text.literal("SURV // UTILS V5"));
     }
 
     @Override
@@ -61,11 +61,13 @@ public final class ExoLinkScreen extends Screen {
 
     private void buildStatus(int x,int y,int w) {
         int half=(w-8)/2;
-        toggle(x,y,half,"EXO HUD MASTER",()->ExoLinkData.SETTINGS.exoHud,v->ExoLinkData.SETTINGS.exoHud=v);
+        toggle(x,y,half,"HUD MASTER",()->ExoLinkData.SETTINGS.exoHud,v->ExoLinkData.SETTINGS.exoHud=v);
         toggle(x+half+8,y,half,"EMERGENCY MODE",()->ExoLinkData.SETTINGS.emergencyMode,v->ExoLinkData.SETTINGS.emergencyMode=v);
         y+=34;
         toggle(x,y,half,"ADVISOR",()->ExoLinkData.SETTINGS.advisor,v->ExoLinkData.SETTINGS.advisor=v);
         toggle(x+half+8,y,half,"ESCAPE VECTOR",()->ExoLinkData.SETTINGS.escapeVector,v->ExoLinkData.SETTINGS.escapeVector=v);
+        y+=34;
+        button(x,y,w,"AUTOMATION CORE // "+SurvAutomationManager.enabledCount()+" ENABLED",()->client.setScreen(new SurvAutomationScreen(this)));
     }
 
     private void buildVisor(int x,int y,int w) {
@@ -104,6 +106,13 @@ public final class ExoLinkScreen extends Screen {
         y+=34;
         button(x,y,half,"THREAT MEMORY // "+ThreatMemoryManager.all().size(),()->client.setScreen(new ExoThreatMemoryScreen(this)));
         if(ExoLinkData.SETTINGS.echo) button(x+half+8,y,half,"OPEN ECHO",()->client.setScreen(new Echo3DScreen(this)));
+        y+=34;
+        button(x,y,half,"REPEAT // "+ChatRepeatManager.profileCount()+"/10 PROFILES",()->{
+            if(client.player!=null)client.player.sendMessage(Text.literal("[SURV // REPEAT] "+ChatRepeatManager.status()),false);
+        });
+        button(x+half+8,y,half,"PLAYER NOTIFIER // "+PlayerNotifierManager.count()+"/10",()->{
+            if(client.player!=null)client.player.sendMessage(Text.literal("[SURV // NOTIFY] "+PlayerNotifierManager.list()),false);
+        });
     }
 
     private void buildCombat(int x,int y,int w) {
@@ -181,8 +190,8 @@ public final class ExoLinkScreen extends Screen {
         ctx.fill(left+3,14,left+6,height-13,0xFF263236);
         ctx.fill(right-6,14,right-3,height-13,0xFF263236);
 
-        ctx.drawTextWithShadow(textRenderer,"EXO // LINK",left+16,23,0xFFDDF8FA);
-        ctx.drawTextWithShadow(textRenderer,"POWER ARMOR SURVIVAL SYSTEM",left+16,35,0xFF71888D);
+        ctx.drawTextWithShadow(textRenderer,"SURV // UTILS V5",left+16,23,0xFFDDF8FA);
+        ctx.drawTextWithShadow(textRenderer,"SURVIVAL AUTOMATION + INTEL SYSTEM",left+16,35,0xFF71888D);
 
         drawStatusReadout(ctx,left+18,250,right-left-36);
         super.render(ctx,mouseX,mouseY,delta);
@@ -196,7 +205,9 @@ public final class ExoLinkScreen extends Screen {
                 line(ctx,x,y,"ADVISOR // "+a.recommendation()+" // "+a.opponent(),0xFF72DFEB); y+=15;
                 line(ctx,x,y,"ESCAPE // "+a.escape().direction()+" // "+a.escape().clearBlocks()+"m CLEAR",0xFFA8C9CE); y+=15;
                 WarningManager.Warning warn=SurvivalUtilsClient.WARNINGS.active();
-                line(ctx,x,y,"WARNING // "+(warn==null?"NONE":warn.severity()+" // "+warn.text()),warn==null?0xFF7FE4A2:0xFFFF7777);
+                line(ctx,x,y,"WARNING // "+(warn==null?"NONE":warn.severity()+" // "+warn.text()),warn==null?0xFF7FE4A2:0xFFFF7777); y+=15;
+                line(ctx,x,y,"AUTOMATIONS // "+SurvAutomationManager.enabledCount()+" ENABLED",0xFF7DE1EB); y+=15;
+                line(ctx,x,y,"REPEAT "+ChatRepeatManager.profileCount()+"/10 // NOTIFIER "+PlayerNotifierManager.count()+"/10",0xFFA7C2C7);
             }
             case "VISOR"->{
                 line(ctx,x,y,"VISOR DAMAGE // "+VisorDamageSystem.damagePercent()+"%",0xFF7DE1EB); y+=15;
