@@ -40,6 +40,11 @@ public final class SurvAutomationManager {
         public boolean packRecallOnDanger=true;
         public boolean autoSleepNearby=false;
         public boolean combatFocus=true;
+        public boolean refillPearlSlot=false;
+        public boolean refillGoldenAppleSlot=false;
+        public boolean refillWaterBucketSlot=false;
+        public boolean emergencyShieldReady=false;
+        public boolean lowFoodAutoReserve=true;
 
         public int eatAtHunger=12;
         public int toolSaverPercent=5;
@@ -49,6 +54,9 @@ public final class SurvAutomationManager {
         public int rocketSlot=5;
         public int torchSlot=4;
         public int blockSlot=3;
+        public int pearlSlot=1;
+        public int goldenAppleSlot=2;
+        public int waterBucketSlot=0;
     }
 
     private static boolean loaded;
@@ -94,6 +102,11 @@ public final class SurvAutomationManager {
         SETTINGS.packRecallOnDanger=s.packRecallOnDanger;
         SETTINGS.autoSleepNearby=s.autoSleepNearby;
         SETTINGS.combatFocus=s.combatFocus;
+        SETTINGS.refillPearlSlot=s.refillPearlSlot;
+        SETTINGS.refillGoldenAppleSlot=s.refillGoldenAppleSlot;
+        SETTINGS.refillWaterBucketSlot=s.refillWaterBucketSlot;
+        SETTINGS.emergencyShieldReady=s.emergencyShieldReady;
+        SETTINGS.lowFoodAutoReserve=s.lowFoodAutoReserve;
         SETTINGS.eatAtHunger=s.eatAtHunger;
         SETTINGS.toolSaverPercent=s.toolSaverPercent;
         SETTINGS.totemSlot=clampSlot(s.totemSlot);
@@ -102,6 +115,9 @@ public final class SurvAutomationManager {
         SETTINGS.rocketSlot=clampSlot(s.rocketSlot);
         SETTINGS.torchSlot=clampSlot(s.torchSlot);
         SETTINGS.blockSlot=clampSlot(s.blockSlot);
+        SETTINGS.pearlSlot=clampSlot(s.pearlSlot);
+        SETTINGS.goldenAppleSlot=clampSlot(s.goldenAppleSlot);
+        SETTINGS.waterBucketSlot=clampSlot(s.waterBucketSlot);
     }
 
     public static void save(){
@@ -140,6 +156,13 @@ public final class SurvAutomationManager {
             if(SETTINGS.refillRocketSlot)refill(c,SETTINGS.rocketSlot,"firework_rocket",8);
             if(SETTINGS.refillTorchSlot)refill(c,SETTINGS.torchSlot,"torch",16);
             if(SETTINGS.refillBlockSlot)refillBlock(c,SETTINGS.blockSlot,32);
+            if(SETTINGS.refillPearlSlot)refill(c,SETTINGS.pearlSlot,"ender_pearl",4);
+            if(SETTINGS.refillGoldenAppleSlot)refill(c,SETTINGS.goldenAppleSlot,"golden_apple",2);
+            if(SETTINGS.refillWaterBucketSlot)refill(c,SETTINGS.waterBucketSlot,"water_bucket",1);
+        }
+
+        if(SETTINGS.lowFoodAutoReserve&&InventoryUtil.foodCount(c.player)<=4&&SETTINGS.autoEat){
+            SETTINGS.eatAtHunger=Math.min(14,SETTINGS.eatAtHunger);
         }
 
         if(SETTINGS.toolSaver)toolSaver(c);
@@ -150,6 +173,7 @@ public final class SurvAutomationManager {
         if(SETTINGS.autoSprint)autoSprint(c); else releaseSprint(c);
         if(SETTINGS.packRecallOnDanger)packRecall(c);
         if(SETTINGS.autoSleepNearby)autoSleep(c);
+        if(SETTINGS.emergencyShieldReady)emergencyShieldReady(c);
 
         if(SETTINGS.combatFocus){
             WarningManager.Warning w=SurvivalUtilsClient.WARNINGS.active();
@@ -324,6 +348,20 @@ public final class SurvAutomationManager {
         sprintPressed=false;
     }
 
+    private static void emergencyShieldReady(MinecraftClient c){
+        WarningManager.Warning w=SurvivalUtilsClient.WARNINGS.active();
+        if(w==null)return;
+        boolean danger=w.text().toLowerCase(Locale.ROOT).contains("projectile")
+                || w.text().toLowerCase(Locale.ROOT).contains("player very close")
+                || w.text().toLowerCase(Locale.ROOT).contains("hostile within");
+        if(!danger)return;
+        int slot=findHotbar(c,"shield");
+        if(slot>=0&&c.player.getInventory().getSelectedSlot()!=slot){
+            c.player.getInventory().setSelectedSlot(slot);
+            notify(c,"SHIELD READY // slot "+(slot+1));
+        }
+    }
+
     private static void packRecall(MinecraftClient c){
         WarningManager.Warning w=SurvivalUtilsClient.WARNINGS.active();
         if(w==null||w.severity().ordinal()<WarningManager.Severity.DANGER.ordinal())return;
@@ -393,6 +431,11 @@ public final class SurvAutomationManager {
         if(SETTINGS.packRecallOnDanger)n++;
         if(SETTINGS.autoSleepNearby)n++;
         if(SETTINGS.combatFocus)n++;
+        if(SETTINGS.refillPearlSlot)n++;
+        if(SETTINGS.refillGoldenAppleSlot)n++;
+        if(SETTINGS.refillWaterBucketSlot)n++;
+        if(SETTINGS.emergencyShieldReady)n++;
+        if(SETTINGS.lowFoodAutoReserve)n++;
         return n;
     }
 }
