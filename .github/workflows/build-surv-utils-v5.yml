@@ -1,0 +1,50 @@
+name: Build SURV Utils V5
+
+on:
+  push:
+    branches: [ surv-utils-v5 ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.2.1'
+      - name: Bundle runtime engines
+        run: |
+          mkdir -p survivalutils/src/main/resources/META-INF/jars
+          curl -L --fail --retry 3 \
+            https://github.com/19MisterX98/SeedcrackerX/releases/download/2.15.6/seedcrackerX-2.15.6.jar \
+            -o survivalutils/src/main/resources/META-INF/jars/seedcrackerX-2.15.6.jar
+          curl -L --fail --retry 3 \
+            https://github.com/Earthcomputer/clientcommands/releases/download/v2.13.2/clientcommands-2.13.2.jar \
+            -o survivalutils/src/main/resources/META-INF/jars/clientcommands-2.13.2.jar
+      - name: Build
+        run: gradle clean build --stacktrace
+      - name: Verify JAR
+        run: |
+          JAR=$(find build/libs -maxdepth 1 -name 'SURV-UTILS-V5-*.jar' ! -name '*-sources.jar' | head -n 1)
+          test -f "$JAR"
+          jar tf "$JAR" | grep 'META-INF/jars/seedcrackerX-2.15.6.jar'
+          jar tf "$JAR" | grep 'META-INF/jars/clientcommands-2.13.2.jar'
+          jar tf "$JAR" | grep 'com/survivalutils/ChatRepeatManager.class'
+          jar tf "$JAR" | grep 'com/survivalutils/PlayerNotifierManager.class'
+          jar tf "$JAR" | grep 'com/survivalutils/SurvAutomationManager.class'
+          unzip -t "$JAR"
+          sha256sum "$JAR"
+      - name: Upload JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: SURV-UTILS-V5-1.21.11
+          path: |
+            build/libs/SURV-UTILS-V5-*.jar
+            !build/libs/*-sources.jar
+          if-no-files-found: error
