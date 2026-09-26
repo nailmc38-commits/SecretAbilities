@@ -12,7 +12,7 @@ import java.util.Map;
 
 public final class ExoLinkData {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final Path ROOT = FabricLoader.getInstance().getConfigDir().resolve("exo-link");
+    private static final Path ROOT = FabricLoader.getInstance().getConfigDir().resolve("surv-utils-v5");
     private static final Path CONFIG = ROOT.resolve("config.json");
 
     public static final Settings SETTINGS = new Settings();
