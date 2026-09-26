@@ -18,8 +18,8 @@ dependencies {
 
 sourceSets {
     main {
-        java.srcDirs = ['survivalutils/src/main/java']
-        resources.srcDirs = ['survivalutils/src/main/resources']
+        java.srcDirs = ['autototem/src/main/java']
+        resources.srcDirs = ['autototem/src/main/resources']
     }
 }
 
