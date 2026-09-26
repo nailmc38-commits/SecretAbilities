@@ -42,6 +42,11 @@ public final class SurvAutomationScreen extends Screen {
         toggle(x2,y,colW,"PACK RECALL ON DANGER",()->SurvAutomationManager.SETTINGS.packRecallOnDanger,v->SurvAutomationManager.SETTINGS.packRecallOnDanger=v); y+=28;
         toggle(x2,y,colW,"AUTO SLEEP NEARBY",()->SurvAutomationManager.SETTINGS.autoSleepNearby,v->SurvAutomationManager.SETTINGS.autoSleepNearby=v); y+=28;
         toggle(x2,y,colW,"COMBAT FOCUS",()->SurvAutomationManager.SETTINGS.combatFocus,v->SurvAutomationManager.SETTINGS.combatFocus=v); y+=28;
+        toggle(x2,y,colW,"REFILL PEARLS SLOT 2",()->SurvAutomationManager.SETTINGS.refillPearlSlot,v->SurvAutomationManager.SETTINGS.refillPearlSlot=v); y+=28;
+        toggle(x2,y,colW,"REFILL GAPPLE SLOT 3",()->SurvAutomationManager.SETTINGS.refillGoldenAppleSlot,v->SurvAutomationManager.SETTINGS.refillGoldenAppleSlot=v); y+=28;
+        toggle(x2,y,colW,"REFILL WATER SLOT 1",()->SurvAutomationManager.SETTINGS.refillWaterBucketSlot,v->SurvAutomationManager.SETTINGS.refillWaterBucketSlot=v); y+=28;
+        toggle(x2,y,colW,"EMERGENCY SHIELD READY",()->SurvAutomationManager.SETTINGS.emergencyShieldReady,v->SurvAutomationManager.SETTINGS.emergencyShieldReady=v); y+=28;
+        toggle(x2,y,colW,"LOW FOOD RESERVE",()->SurvAutomationManager.SETTINGS.lowFoodAutoReserve,v->SurvAutomationManager.SETTINGS.lowFoodAutoReserve=v); y+=28;
 
         addDrawableChild(ButtonWidget.builder(Text.literal("BACK"),b->client.setScreen(parent))
                 .dimensions(left,height-34,100,22).build());
